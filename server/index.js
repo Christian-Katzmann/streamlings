@@ -17,6 +17,7 @@ const ASSET_DIR = process.env.STREAM_ASSETS || path.resolve(path.dirname(new URL
 const BACK_URL = process.env.BACK_URL || 'https://github.com/Christian-Katzmann/streamlings';
 const DATA = process.env.DATA_DIR || path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', 'data');
 const TICK_MS = 100; // 10 fps
+const BASE = process.env.BASE_PATH || ''; // external prefix when behind a path route (e.g. /momo)
 
 fs.mkdirSync(DATA, { recursive: true });
 const ledgerPath = path.join(DATA, 'ledger.json');
@@ -56,7 +57,7 @@ function housePage(kind, back) {
 <title>Momó's house</title>
 <body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#faf8f3;font-family:ui-rounded,'Comic Sans MS',sans-serif;color:#111">
 <div style="text-align:center">
-<img src="/stage.gif" width="280" height="280" alt="Momó, live" style="image-rendering:auto">
+<img src="${BASE}/stage.gif" width="280" height="280" alt="Momó, live" style="image-rendering:auto">
 <p style="font-size:20px;margin:8px 0 2px">${{ feed: 'nom nom nom…', pat: '♥', play: 'wheee!' }[kind] ?? '…'}</p>
 <p style="font-size:13px;opacity:.55">taking you back <a href="${back}" style="color:inherit">now</a></p>
 </div></body>`;
