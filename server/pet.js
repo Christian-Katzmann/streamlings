@@ -63,6 +63,7 @@ export class Pet {
   }
 
   pickWeighted(pool) {
+    if (!pool.length) return this.pools.idle[0] || this.manifest[0];
     const weights = pool.map(c => SPAWN_WEIGHT[c.spawn] ?? 0.2);
     let r = Math.random() * weights.reduce((a, b) => a + b, 0);
     for (let i = 0; i < pool.length; i++) {
@@ -76,7 +77,8 @@ export class Pet {
     if (this.mood !== 'sunny' && this.pools.sad.length && Math.random() < 0.7) {
       return this.pickWeighted(this.pools.sad);
     }
-    return this.pickWeighted(Math.random() < 0.2 ? this.pools.look : this.pools.idle);
+    const pool = Math.random() < 0.2 && this.pools.look.length ? this.pools.look : this.pools.idle;
+    return this.pickWeighted(pool);
   }
 
   defaultBubble(kind) {
