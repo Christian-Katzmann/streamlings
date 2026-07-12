@@ -1,16 +1,16 @@
 <div align="center">
 
-<img src="assets/preview.gif" width="320" alt="Momó, a hand-drawn octopus, idling — this is a real capture from the live server" />
+<img src="https://vmi3375405.contaboserver.net/momo/stage.gif" width="320" alt="Momó, live — this image never finishes loading" />
 
 # Streamlings
 
 **A live, interactive pet that lives in a GitHub README.**
 
-This is Momó. On a live deployment, the image above never finishes loading —
-it's an endless GIF streamed frame-by-frame from a tiny server,
-which makes a README behave like a screen.
+This is Momó, and the image above is **live right now** — it never finishes loading.
+It's an endless GIF streamed frame-by-frame from a tiny server, which makes a README
+behave like a screen. Momó noticed you arrive. Momó will notice you leave.
 
-*(The image above is a real capture from the local server — the live stream goes public at launch.)*
+*(Static fallback if the stream is napping: [preview.gif](assets/preview.gif))*
 
 [How it works](#the-tricks) · [Interact](#interact) · [Status](#status) · [The plan](docs/PLAN.md)
 
@@ -39,17 +39,20 @@ its own 24-color palette so a viewer can join the stream at any tick.
 
 ## Interact
 
-> 🔴 **Pre-launch.** The live server isn't deployed yet — these buttons activate at launch.
+Click one, watch the image above react — no refresh needed. You'll bounce through
+Momó's house for a second and land right back here. Momó remembers repeat feeders. ♥
 
 <div align="center">
 
-🍖 feed &nbsp;·&nbsp; ✋ pat &nbsp;·&nbsp; ⚽ play &nbsp;·&nbsp; ⭐ star = a celebration with your name in it
+[**🍖 feed**](https://vmi3375405.contaboserver.net/momo/act/feed?back=https://github.com/Christian-Katzmann/streamlings) &nbsp;·&nbsp; [**✋ pat**](https://vmi3375405.contaboserver.net/momo/act/pat?back=https://github.com/Christian-Katzmann/streamlings) &nbsp;·&nbsp; [**⚽ play**](https://vmi3375405.contaboserver.net/momo/act/play?back=https://github.com/Christian-Katzmann/streamlings)
+
+⭐ starring = a celebration with your name in it *(coming in M2)*
 
 </div>
 
 ## Status
 
-- [x] **M1 — the core loop**: endless stream, state machine over 77 hand-tagged clips, spawn-weighted idle pool (rare clips are easter eggs), greet-on-arrival, click reactions that interrupt idling, speech bubbles, feeder memory. *Verified end-to-end in a real browser.*
+- [x] **M1 — the core loop**: endless stream, state machine over 77 hand-tagged clips, spawn-weighted idle pool (rare clips are easter eggs), greet-on-arrival, click reactions that interrupt idling, speech bubbles, feeder memory. **Deployed and live in this README.**
 - [ ] **M2 — the star eruption**: webhook → instant full-page celebration, stargazer's name in lights
 - [ ] **M3 — the gaze engine**: sensor fusion over scroll + clicks + presence → cursor-following eyes
 - [ ] **M4 — trojan utility**: CI mood (red build = rain), Dependabot fleas, commit metabolism
