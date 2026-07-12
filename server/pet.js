@@ -1,7 +1,5 @@
-// The pet brain: a clip-chaining state machine over the manifest.
-// v2: moods (rain = red CI, fleas = open vulns, independent flags), rooms
-// (stage/bedroom dollhouse), celebrations (star/fork eruptions with the actor's name),
-// and gaze targets. Idle pool is spawn-weighted (common idles rotate, rare = easter eggs).
+// Momó's scene library and mood state. Requests select a complete scene which is
+// encoded as a bounded looping GIF; no behavior depends on a live connection.
 import fs from 'node:fs';
 import path from 'node:path';
 import { PNG } from 'pngjs';
@@ -15,211 +13,89 @@ const REACTIONS = {
   feed:    { ids: ['037', '036', '027', '002'], bubbles: ['nom nom nom!', 'my favorite!', 'more, please!', '♥ ♥ ♥'] },
   pat:     { ids: ['013', '032', '029', '042'], bubbles: ['hehe', 'that is the spot!', '♥'] },
   play:    { ids: ['038', '044', '026', '075'], bubbles: ['wheee!', 'again! again!', 'catch!'] },
-  greet:   { ids: ['072', '005', '050', '030'], bubbles: ['oh, hello!', 'hi there!', 'welcome!'] },
+  wake:    { ids: ['072', '005', '050', '030'], bubbles: ['oh, hello!', 'hi there!', 'welcome!'] },
   boop:    { ids: ['029', '010', '075', '034'], bubbles: ['!!', 'you found the boop', 'eep!'] },
-  build:   { ids: ['006', '045', '024'],        bubbles: ['new code! nom nom', 'ooh, commits!', 'i shall guard this code'] },
-  star:    { ids: ['076', '023', '026', '035'], bubbles: null }, // bubble carries the name, set by celebrate()
-  fork:    { ids: ['052', '036', '023'],        bubbles: null },
+  build:   { ids: ['006', '045', '024'], bubbles: ['new code! nom nom', 'ooh, commits!', 'i shall guard this code'] },
+  star:    { ids: ['076', '023', '026', '035'], bubbles: null },
+  fork:    { ids: ['052', '036', '023'], bubbles: null },
   whisper: { ids: ['063', '007', '046', '043'], bubbles: null },
 };
 const SAD_IDS = ['019', '028', '039', '040', '049', '018'];
-const SLEEP_AFTER_EMPTY_MS = 5 * 60 * 1000;
-const CELEBRATION_TICKS = 140;  // ~14s of banner fireworks
-const PENDING_MS = 45000;       // how long a normal armed reaction waits for its actor
-const CELEBRATE_PENDING_MS = 90000;
-const QUEUE_TTL_MS = 30000;     // a queued reaction that never gets shown is dropped
-const PRIO = { normal: 1, celebrate: 2 };
 
 export class Pet {
-  constructor(assetDir) {
+  constructor(assetDir, flags = {}) {
     this.assetDir = assetDir;
     this.manifest = JSON.parse(fs.readFileSync(path.join(assetDir, 'manifest.json'), 'utf8'));
     const pal = JSON.parse(fs.readFileSync(path.join(assetDir, 'palette.json'), 'utf8'));
-    this.palette = pal.palette; this.ink = pal.ink; this.paper = pal.paper;
+    this.palette = pal.palette;
+    this.ink = pal.ink;
+    this.paper = pal.paper;
     this.byId = Object.fromEntries(this.manifest.map(c => [c.id, c]));
-    this.eyemap = fs.existsSync(path.join(assetDir, 'eyemap.json'))
-      ? JSON.parse(fs.readFileSync(path.join(assetDir, 'eyemap.json'), 'utf8')) : {};
     this.pools = {
       idle: this.manifest.filter(c => c.state_hint === 'idle'),
       sleep: this.manifest.filter(c => c.state_hint === 'sleep'),
       look: this.manifest.filter(c => c.state_hint === 'look-around'),
       sad: SAD_IDS.map(id => this.byId[id]).filter(Boolean),
     };
-    this.cache = new Map(); // key -> [Uint8Array indexed frames]
-    this.queue = [];        // [{clip, bubble, until}]
-    this.pending = null;    // { clip, bubble, until, prio } — armed for the actor's return
-    this.bubbleText = null;
-    this.bubbleFrames = 0;  // frame-countdown, not wall-clock: survives the bounce
-    this.stageViewers = 0;
-    this.bedroomViewers = 0;
-    this.emptySince = Date.now();
-    this.width = 400; this.height = 400;
-    this.flags = { fleas: false, ciRed: false }; // independent; mood is derived
-    this.room = 'stage';    // stage | bedroom — the dollhouse
-    this.celebration = null; // { text, kind, ticks }
-    this.gaze = { dy: 0, dx: 0 }; // pupil offset target, set by sensors/clicks
-    this.setClip(this.pickIdle());
+    this.cache = new Map();
+    this.width = 400;
+    this.height = 400;
+    this.flags = flags;
+    this.flags.fleas ??= false;
+    this.flags.ciRed ??= false;
   }
 
-  get viewers() { return this.stageViewers + this.bedroomViewers; }
   get mood() { return this.flags.fleas ? 'fleas' : this.flags.ciRed ? 'rain' : 'sunny'; }
   setFlag(name, on) { if (name in this.flags) this.flags[name] = !!on; }
 
   loadFrames(clip) {
     if (this.cache.has(clip.key)) return this.cache.get(clip.key);
     const dir = path.join(this.assetDir, 'frames', clip.key);
-    const frames = fs.readdirSync(dir).sort().map(f => {
-      const png = PNG.sync.read(fs.readFileSync(path.join(dir, f)));
-      this.width = png.width; this.height = png.height;
+    const frames = fs.readdirSync(dir).sort().map(file => {
+      const png = PNG.sync.read(fs.readFileSync(path.join(dir, file)));
+      this.width = png.width;
+      this.height = png.height;
       return applyPalette(png.data, this.palette);
     });
     this.cache.set(clip.key, frames);
-    if (this.cache.size > 8) this.cache.delete(this.cache.keys().next().value); // small LRU
+    if (this.cache.size > 10) this.cache.delete(this.cache.keys().next().value);
     return frames;
   }
 
   pickWeighted(pool) {
     const weights = pool.map(c => SPAWN_WEIGHT[c.spawn] ?? 0.2);
     let r = Math.random() * weights.reduce((a, b) => a + b, 0);
-    for (let i = 0; i < pool.length; i++) { r -= weights[i]; if (r <= 0) return pool[i]; }
+    for (let i = 0; i < pool.length; i++) {
+      r -= weights[i];
+      if (r <= 0) return pool[i];
+    }
     return pool[pool.length - 1];
   }
 
   pickIdle() {
-    // a sad mood colors the idle rotation (that's the trojan-utility trick:
-    // a red build is ignorable, a crying octopus is not)
-    if (this.mood !== 'sunny' && this.pools.sad.length && Math.random() < 0.55) return this.pickWeighted(this.pools.sad);
-    const asleep = this.viewers === 0 && Date.now() - this.emptySince > SLEEP_AFTER_EMPTY_MS;
-    if (asleep) return this.pickWeighted(this.pools.sleep);
-    const pool = Math.random() < 0.2 ? this.pools.look : this.pools.idle;
-    return this.pickWeighted(pool);
-  }
-
-  setClip(clip) {
-    this.clip = clip;
-    this.frames = this.loadFrames(clip);
-    this.frameIdx = 0;
-  }
-
-  playNow(clip, bubble) {
-    this.room = 'stage'; // anything worth reacting to happens on stage
-    this.setClip(clip);
-    if (bubble) { this.bubbleText = bubble; this.bubbleFrames = 30; }
-  }
-
-  pickReaction(kind) {
-    const r = REACTIONS[kind];
-    const clip = this.byId[r.ids[Math.floor(Math.random() * r.ids.length)]];
-    const bubble = r.bubbles ? r.bubbles[Math.floor(Math.random() * r.bubbles.length)] : null;
-    return { clip, bubble };
-  }
-
-  // a higher- or equal-priority pending, still within its window, is never clobbered
-  arm(clip, bubble, prio, ttl) {
-    const now = Date.now();
-    if (this.pending && this.pending.until > now && this.pending.prio > prio) return;
-    this.pending = { clip, bubble, until: now + ttl, prio };
-  }
-
-  enqueue(entry) {
-    this.queue.push({ ...entry, until: Date.now() + QUEUE_TTL_MS });
-    if (this.queue.length > 4) this.queue.shift();
-  }
-
-  react(kind, bubbleOverride) {
-    if (!REACTIONS[kind]) return;
-    const { clip, bubble: def } = this.pickReaction(kind);
-    const bubble = bubbleOverride ?? def;
-    if (this.stageViewers > 0) {
-      const interruptible = ['idle', 'sleep', 'look-around'].includes(this.clip.state_hint);
-      if (interruptible && this.queue.length === 0) this.playNow(clip, bubble);
-      else this.enqueue({ clip, bubble });
+    if (this.mood !== 'sunny' && this.pools.sad.length && Math.random() < 0.7) {
+      return this.pickWeighted(this.pools.sad);
     }
-    // ALSO arm for the actor's own return (the bounce/reload reopens the stream)
-    this.arm(clip, bubble, PRIO.normal, PENDING_MS);
+    return this.pickWeighted(Math.random() < 0.2 ? this.pools.look : this.pools.idle);
   }
 
-  // star/fork eruption: stage reaction + banner fireworks with the actor's name
-  celebrate(kind, login) {
-    const text = kind === 'fork' ? `a little one! hi @${login}` : `thank you @${login} ★`;
-    this.celebration = { text, kind, ticks: CELEBRATION_TICKS };
-    const { clip } = this.pickReaction(kind);
-    if (this.stageViewers > 0) {
-      this.playNow(clip, text);
-      const encore = this.pickReaction(kind);
-      this.enqueue({ clip: encore.clip, bubble: null }); // encore only when someone is watching
+  defaultBubble(kind) {
+    const bubbles = REACTIONS[kind]?.bubbles;
+    return bubbles?.[Math.floor(Math.random() * bubbles.length)] ?? null;
+  }
+
+  scene(kind = 'idle', bubbleOverride, clipId) {
+    let clip;
+    if (kind === 'idle') clip = this.pickIdle();
+    else if (kind === 'sleep') clip = this.pickWeighted(this.pools.sleep);
+    else {
+      const reaction = REACTIONS[kind] || REACTIONS.wake;
+      clip = this.byId[clipId] || this.byId[reaction.ids[Math.floor(Math.random() * reaction.ids.length)]];
     }
-    this.arm(clip, text, PRIO.celebrate, CELEBRATE_PENDING_MS);
-  }
-
-  // room-aware presence: greet/pending consume only when the STAGE gains its first
-  // viewer (reactions play on stage). Bedroom is a passive "catch it napping" window.
-  onPresence(stage, bedroom) {
-    const stageWasEmpty = this.stageViewers === 0;
-    this.stageViewers = stage;
-    this.bedroomViewers = bedroom;
-    if (this.viewers === 0) { this.emptySince = Date.now(); return; }
-    if (stage === 0 || !stageWasEmpty) return;
-    if (this.pending && Date.now() < this.pending.until) {
-      const { clip, bubble } = this.pending;
-      this.pending = null;
-      this.playNow(clip, bubble);
-    } else {
-      this.pending = null;
-      this.react('greet');
-    }
-  }
-
-  moodBubble() {
-    if (this.flags.fleas) return 'i have fleas! (deps have alerts)';
-    if (this.flags.ciRed) return 'the build is red… fix it?';
-    return null;
-  }
-
-  // eye centers for a given frame index, if this clip has a verified eye map
-  eyesForIndex(idx) {
-    const m = this.eyemap[this.clip.id];
-    if (!m) return null;
-    return m[Math.min(idx, m.length - 1)] || null;
-  }
-
-  dropStaleQueue() {
-    const now = Date.now();
-    while (this.queue.length && this.queue[0].until < now) this.queue.shift();
-  }
-
-  // advances state one tick and returns the composited stage frame
-  tick(composer) {
-    if (this.celebration && --this.celebration.ticks <= 0) this.celebration = null;
-    if (this.frameIdx >= this.frames.length) {
-      this.dropStaleQueue();
-      const next = this.queue.shift();
-      if (next) {
-        this.setClip(next.clip);
-        if (next.bubble) { this.bubbleText = next.bubble; this.bubbleFrames = 30; }
-      } else {
-        // dollhouse wandering: sometimes Momó slips off to the bedroom for a nap clip
-        const sleepy = this.viewers === 0 || Math.random() < 0.12;
-        this.room = (sleepy && this.mood === 'sunny' && !this.celebration && Math.random() < 0.5)
-          ? 'bedroom' : 'stage';
-        const clip = this.room === 'bedroom' ? this.pickWeighted(this.pools.sleep) : this.pickIdle();
-        this.setClip(clip);
-        const mb = this.moodBubble();
-        if (mb && Math.random() < 0.3) { this.bubbleText = mb; this.bubbleFrames = 30; }
-      }
-    }
-    // capture eyes for THIS frame index BEFORE advancing (off-by-one fix)
-    const curIdx = this.frameIdx;
-    let frame = this.frames[this.frameIdx++];
-    const bubbling = this.bubbleText && this.bubbleFrames > 0;
-    const eyes = !bubbling ? this.eyesForIndex(curIdx) : null;
-    const gazing = eyes && (this.gaze.dx || this.gaze.dy);
-    if (bubbling || gazing) frame = frame.slice();
-    if (gazing) composer.gazeDots(frame, this.width, eyes, this.gaze);
-    if (bubbling) {
-      this.bubbleFrames--;
-      composer.bubble(frame, this.width, this.height, this.bubbleText);
-    } else if (this.bubbleText) this.bubbleText = null;
-    return frame;
+    const moodBubble = this.flags.fleas
+      ? 'i have fleas! (dependency alerts)'
+      : this.flags.ciRed ? 'the build is red… fix it?' : null;
+    const bubble = bubbleOverride ?? (kind === 'idle' ? moodBubble : this.defaultBubble(kind));
+    return { kind, clip, frames: this.loadFrames(clip), bubble };
   }
 }

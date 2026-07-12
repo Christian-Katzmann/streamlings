@@ -1,16 +1,19 @@
-# Deploying the pet server
+# Deploying Streamlings
 
-The stream is a long-lived HTTP connection per viewer — this needs a small always-on box
-(Fly.io, Hetzner, any VPS). **Not serverless**: lambdas time out; endless GIFs don't.
+The server returns complete, self-looping GIFs in under Camo's ~4.3 second upstream
+window. It needs persistent disk for feeder counts, recent reactions, and repo mood;
+any small always-on Node host works.
 
-```
+```sh
 npm install
-ASSET_DIR=/path/to/mascot-assets npm run build   # one-time: frames + palette + glyphs
+ASSET_DIR=/path/to/mascot-assets npm run build
+npm test
 PORT=8787 BACK_URL=https://github.com/Christian-Katzmann/streamlings npm start
 ```
 
-Env: `PORT`, `BACK_URL` (bounce-back target), `STREAM_ASSETS` (built assets dir),
-`DATA_DIR` (ledger). Put a TLS proxy in front (Caddy/Fly handles this) — GitHub's Camo
-only proxies https. Keep `Cache-Control: no-store` (already set) so Camo streams through.
+Environment: `PORT`, `BACK_URL`, `STREAM_ASSETS`, `DATA_DIR`, `REPO_SLUG`,
+`WEBHOOK_SECRET`, and optional `BASE_PATH`.
 
-Sizing: ~38 KB/s per open viewer; a 256 MB instance handles a launch-day README fine.
+Put TLS in front; Camo only proxies HTTPS. Preserve the server's `Cache-Control:
+no-store` response so a refresh can render recent events. The committed artwork is only
+a preview; production uses the private built frame library.

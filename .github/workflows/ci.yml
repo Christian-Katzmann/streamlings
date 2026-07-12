@@ -11,3 +11,4 @@ jobs:
         with: { node-version: 22 }
       - run: npm ci
       - run: for f in server/*.js pipeline/*.js tools/*.js; do node --check "$f"; done
+      - run: npm test

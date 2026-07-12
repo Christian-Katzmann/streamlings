@@ -1,28 +1,34 @@
-// Endless GIF plumbing. A stream = one handshake (header, no global palette, infinite
-// loop ext) + frames forever, each carrying its own local palette so a viewer can join
-// at any tick. No trailer is ever written — the image simply never finishes.
+// Complete, self-looping GIFs for GitHub Camo.
+//
+// Camo closes upstream image fetches after ~4.3 seconds. A finished GIF generated
+// quickly survives that boundary and loops in the browser; an endless GIF does not.
 import gifencMod from 'gifenc';
 let gifenc = gifencMod;
 while (gifenc && !(gifenc.GIFEncoder && gifenc.quantize)) gifenc = gifenc.default;
 const { GIFEncoder } = gifenc;
 
-export function handshake(width, height) {
-  // Deliberately NO NETSCAPE loop extension: when a stream window ends, the image
-  // freezes on its final frame (an instruction card) instead of deceptively
-  // replaying the recording as if the pet were still live.
-  const b = Buffer.alloc(6 + 7);
-  let o = 0;
-  b.write('GIF89a', o); o += 6;
-  b.writeUInt16LE(width, o); o += 2;
-  b.writeUInt16LE(height, o); o += 2;
-  b.writeUInt8(0x70, o++); // no GCT, 8-bit color resolution
-  b.writeUInt8(0, o++);    // bg color index
-  b.writeUInt8(0, o++);    // aspect
-  return b;
-}
+export function encodeLoop(frames, width, height, palette, options = {}) {
+  const {
+    fps = 12,
+    maxFrames = 36,
+    bubble = null,
+    composer = null,
+  } = options;
+  if (!frames.length) throw new Error('cannot encode an empty GIF');
 
-export function encodeFrame(indexed, width, height, palette, delayMs) {
-  const enc = GIFEncoder({ auto: false });
-  enc.writeFrame(indexed, width, height, { palette, delay: delayMs, dispose: 1 });
-  return Buffer.from(enc.bytesView());
+  const count = Math.min(maxFrames, frames.length);
+  const durationMs = frames.length / fps * 1000;
+  const delay = Math.max(20, Math.round(durationMs / count));
+  const enc = GIFEncoder();
+
+  for (let i = 0; i < count; i++) {
+    const source = frames[Math.floor(i * frames.length / count)];
+    const frame = bubble ? source.slice() : source;
+    if (bubble) composer.bubble(frame, width, height, bubble);
+    const frameOptions = { delay, dispose: 1 };
+    if (i === 0) Object.assign(frameOptions, { palette, repeat: 0 });
+    enc.writeFrame(frame, width, height, frameOptions);
+  }
+  enc.finish();
+  return Buffer.from(enc.bytes());
 }

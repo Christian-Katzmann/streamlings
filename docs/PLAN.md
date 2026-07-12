@@ -1,6 +1,10 @@
 # Momó in the README — Full Plan
 **Working title: Streamlings** (final name TBD). Plan written 2026-07-12 from the design session. Status: ready for implementation, waiting on curated clips.
 
+> **Historical design document.** Its endless-stream premise was disproved by real Camo
+> testing. The shipped model uses complete, self-looping GIFs plus durable recent-event
+> memory. See [POSTMORTEM.md](POSTMORTEM.md).
+
 The pitch: a live, interactive virtual pet living in a GitHub README — Momó the octopus, streamed in real time, watching visitors, remembering feeders, greeting stargazers by name, and erupting the whole page in hand-drawn fireworks when someone stars the repo. Built entirely out of things GitHub's markdown sandbox *can't block*: server-rendered images and links.
 
 Inspiration: Nomlings (pixel pet badge fed by commits). We keep its metabolism idea and escalate everything else.

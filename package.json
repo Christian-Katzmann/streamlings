@@ -1,13 +1,13 @@
 {
   "name": "streamlings",
-  "version": "0.1.0",
-  "description": "A live, interactive pet that lives in a GitHub README — powered by an endless GIF stream",
+  "version": "0.2.0",
+  "description": "An interactive pet that wakes up inside a GitHub README",
   "main": "index.js",
   "directories": {
     "doc": "docs"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node --test",
     "build": "node pipeline/build.js",
     "start": "node server/index.js"
   },
