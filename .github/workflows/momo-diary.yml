@@ -1,0 +1,25 @@
+name: momo-diary
+# Once a day, Momó writes one line in its diary. The pet's life story lives in git.
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  entry:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: fetch today's line and append
+        run: |
+          LINE=$(curl -fsS --max-time 20 https://vmi3375405.contaboserver.net/momo/diary/line) || exit 0
+          TODAY=$(date -u +%F)
+          touch DIARY.md
+          grep -q "^${TODAY} " DIARY.md && exit 0
+          [ -s DIARY.md ] || printf "# Momó's diary\n\nOne line a day, written by the pet itself. Do not edit; Momó is sensitive about its diary.\n\n" > DIARY.md
+          printf "%s\n" "$LINE" >> DIARY.md
+          git config user.name "momo-the-octopus"
+          git config user.email "momo@streamlings.invalid"
+          git add DIARY.md
+          git commit -m "diary: $TODAY" && git push || true

@@ -1,0 +1,30 @@
+name: momo-reply
+# Momó's voicebox: whisper issues get a reply in Momó's voice, a reaction, and are
+# then closed ("eaten"). The stream reaction itself is triggered separately by the
+# repo webhook — this Action only speaks.
+on:
+  issues:
+    types: [opened]
+permissions:
+  issues: write
+jobs:
+  reply:
+    if: startsWith(github.event.issue.title, 'whisper')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: reply as Momó
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const voice = JSON.parse(require('fs').readFileSync('.github/momo-voice.json', 'utf8'));
+            const title = context.payload.issue.title.replace(/^whisper[:\s]+/i, '').trim();
+            const who = context.payload.issue.user.login;
+            // deterministic pick: same whisper, same reply (Momó has opinions, not dice)
+            let h = 0; for (const c of title + who) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+            const pool = /\?$/.test(title) ? voice.questions : voice.statements;
+            const reply = pool[h % pool.length].replaceAll('{who}', who).replaceAll('{said}', title || '…');
+            await github.rest.issues.createComment({ ...context.repo, issue_number: context.issue.number, body: reply });
+            await github.rest.reactions.createForIssue({ ...context.repo, issue_number: context.issue.number, content: 'eyes' });
+            await github.rest.reactions.createForIssue({ ...context.repo, issue_number: context.issue.number, content: 'heart' });
+            await github.rest.issues.update({ ...context.repo, issue_number: context.issue.number, state: 'closed', state_reason: 'completed' });
