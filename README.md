@@ -47,8 +47,8 @@ contains the reaction. A cookie remembers repeat feeders.
 
 GitHub READMEs allow images and links, but GitHub's Camo image proxy stops fetching an
 upstream image after about 4.3 seconds. So the server does not pretend it has a permanent
-live connection. It builds a complete GIF in a few hundred milliseconds, including its
-loop instruction and final trailer. Camo receives the whole file; the browser loops it.
+live connection. It builds a complete GIF before that deadline, including its loop
+instruction and final trailer. Camo receives the whole file; the browser loops it.
 
 | Input | Delivery |
 |---|---|

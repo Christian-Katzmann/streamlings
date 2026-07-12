@@ -1,10 +1,10 @@
 # Streamlings — Handoff & Debug Brief
 
-**Status: does NOT yet work as intended.** It looks alive for a few seconds, then freezes.
-Interactive reactions (star/fork/boop/whisper) fire on the server but are invisible to
-visitors. This document is the full picture — the vision, what was actually built and
-deployed, hard evidence about *why* it's broken, and a mandate for the next agent to
-find every problem and make it genuinely work.
+**Status: fixed and verified through GitHub/Camo on 2026-07-13.** Streamlings now serves
+complete self-looping GIFs, persists recent reactions, renders named star thanks after
+the documented wake/refresh step, and gives boop its own visible reaction. See
+`docs/POSTMORTEM.md` for the measured result. The failure analysis below is preserved as
+historical context.
 
 Read this top to bottom before touching code. The origin server works fine when you
 `curl` it directly — **that is not the bar.** The bar is: a real person on github.com,
@@ -165,8 +165,8 @@ The premise that Camo streams indefinitely is **false**; it streams a short slic
 **Evidence:**
 - Webhook delivery log: `star created → 200 OK` (multiple), `workflow_run`, `push` all
   arriving and 200-ing. The server *does* receive them and *does* run `celebrate()`.
-- But: **you cannot star your own repo** — GitHub blocks it — so the owner literally
-  cannot trigger a self-test. Testing requires a second account.
+- Historical assumption: **the owner cannot star their own repo.** This was disproved
+  during the fix: GitHub accepted Christian's star and delivered the named webhook.
 - Even from another account: starring does **not reload** the starrer's page. Their
   `/stage.gif` and `/banner/*.gif` images already delivered + froze their ~4 s slice.
   The 14 s celebration plays on the origin to nobody, then expires. The armed `pending`

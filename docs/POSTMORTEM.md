@@ -21,9 +21,9 @@ new events. That is why the transport model—not only one GIF flag—had to cha
 
 ## The new model
 
-Every image request now gets a **complete GIF**, generated in a few hundred milliseconds
-with a `NETSCAPE2.0` infinite-loop extension and a GIF trailer. The full scene reaches
-Camo before its deadline, then loops locally for as long as the README remains open.
+Every image request now gets a **complete GIF**, generated before Camo's deadline with a
+`NETSCAPE2.0` infinite-loop extension and a GIF trailer. The full scene reaches Camo,
+then loops locally for as long as the README remains open.
 
 Recent actions are durable state, not ephemeral live frames:
 
@@ -40,3 +40,28 @@ Recent actions are durable state, not ephemeral live frames:
 
 This is less magical than the original premise and much more real: Momó wakes on each
 load, remembers what happened, and never freezes.
+
+## Final verification
+
+Verified on 2026-07-13 against github.com, not only the origin:
+
+- Stage through Camo: **2.41 s**, 238,850 B, 36/36 decoded frames, 5.04 s loop, valid trailer.
+- Star banner through Camo: **2.10 s**, 45,891 B, 24/24 frames, valid trailer.
+- Boop through Camo: **2.25 s**, 152,458 B, 36/36 frames, valid trailer.
+- The GitHub browser showed different frames more than a minute apart while preserving
+  the same named message: [first capture](evidence/github-star-thanks.png) ·
+  [later capture](evidence/github-star-thanks-later.png).
+- A real GitHub star delivered its webhook and the returned Camo image visibly rendered
+  `thank you @Christian-Katzmann ★`. GitHub currently allows the owner to star the repo;
+  the handoff's contrary assumption was outdated.
+- CI passed syntax checks, unit tests, webhook tests, and the full-server fixture test.
+- The responsive GitHub page at 390×844 loaded the complete Camo image at 320×320.
+- Whisper issue #1 received Momó's reply, 👀 + ❤️ reactions, and closed successfully.
+
+GitHub's mobile web layout is verified. Native GitHub apps and email clients may choose
+to show only the first GIF frame; that is a graceful static fallback, not a live-mode
+claim.
+
+Evidence: [named star reaction](evidence/github-star-thanks.png) ·
+[visible boop](evidence/github-boop.png) ·
+[whisper issue](https://github.com/Christian-Katzmann/streamlings/issues/1)

@@ -29,6 +29,14 @@ test('star stores a named durable reaction', () => {
   assert.deepEqual(remembered, [['star', 'thank you @octo-user ★', 'social']]);
 });
 
+test('fork stores a named durable reaction', () => {
+  const { ledger, pet, remembered } = fixture();
+  const result = handleEvent('fork', { sender: { login: 'forker' } }, pet, ledger, () => {}, (...args) => remembered.push(args));
+  assert.equal(result, 'ok');
+  assert.equal(ledger.metab.forks, 1);
+  assert.deepEqual(remembered, [['fork', 'a little one! hi @forker', 'social']]);
+});
+
 test('fixing one dependency alert does not clear another', () => {
   const { ledger, pet } = fixture();
   const send = (action, number) => handleEvent('dependabot_alert', { action, alert: { number }, sender: {} }, pet, ledger, () => {});
