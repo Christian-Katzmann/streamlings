@@ -33,8 +33,9 @@ export class Pet {
     };
     this.cache = new Map(); // key -> [Uint8Array indexed frames]
     this.queue = [];        // [{clip, bubble}]
+    this.pending = null;    // reaction armed at click time, played on next stream-open
     this.bubbleText = null;
-    this.bubbleUntil = 0;
+    this.bubbleFrames = 0;  // frame-countdown, not wall-clock: survives the bounce
     this.viewers = 0;
     this.emptySince = Date.now();
     this.width = 400; this.height = 400;
@@ -75,28 +76,42 @@ export class Pet {
     this.frameIdx = 0;
   }
 
+  playNow(clip, bubble) {
+    this.setClip(clip);
+    if (bubble) { this.bubbleText = bubble; this.bubbleFrames = 30; }
+  }
+
   react(kind, bubbleOverride) {
     const r = REACTIONS[kind];
     if (!r) return;
     const clip = this.byId[r.ids[Math.floor(Math.random() * r.ids.length)]];
     const bubble = bubbleOverride ?? r.bubbles[Math.floor(Math.random() * r.bubbles.length)];
-    // reactions interrupt idling immediately (a pet that answers 9s later feels broken);
-    // they queue only behind another running reaction
-    const interruptible = ['idle', 'sleep', 'look-around'].includes(this.clip.state_hint);
-    if (interruptible && this.queue.length === 0) {
-      this.setClip(clip);
-      if (bubble) { this.bubbleText = bubble; this.bubbleUntil = Date.now() + 2600; }
-      return;
+    if (this.viewers > 0) {
+      // someone is watching live: react immediately (interrupt idling), queue behind reactions
+      const interruptible = ['idle', 'sleep', 'look-around'].includes(this.clip.state_hint);
+      if (interruptible && this.queue.length === 0) { this.playNow(clip, bubble); return; }
+      this.queue.push({ clip, bubble });
+      if (this.queue.length > 4) this.queue.shift();
     }
-    this.queue.push({ clip, bubble });
-    if (this.queue.length > 4) this.queue.shift();
+    // ALSO arm it for the clicker's own return: the bounce reloads the README, which
+    // reopens the stream a few seconds from now — that's when they must see it.
+    this.pending = { clip, bubble, until: Date.now() + 45000 };
   }
 
   onViewers(n) {
     const wasEmpty = this.viewers === 0;
     this.viewers = n;
-    if (n === 0) this.emptySince = Date.now();
-    else if (wasEmpty) this.react('greet');
+    if (n === 0) { this.emptySince = Date.now(); return; }
+    if (!wasEmpty) return;
+    // a viewer just arrived: armed reaction beats greeting
+    if (this.pending && Date.now() < this.pending.until) {
+      const { clip, bubble } = this.pending;
+      this.pending = null;
+      this.playNow(clip, bubble);
+    } else {
+      this.pending = null;
+      this.react('greet');
+    }
   }
 
   // returns the composited indexed frame for this tick
@@ -105,11 +120,12 @@ export class Pet {
       const next = this.queue.shift();
       if (next) {
         this.setClip(next.clip);
-        if (next.bubble) { this.bubbleText = next.bubble; this.bubbleUntil = Date.now() + 2600; }
+        if (next.bubble) { this.bubbleText = next.bubble; this.bubbleFrames = 30; }
       } else this.setClip(this.pickIdle());
     }
     let frame = this.frames[this.frameIdx++];
-    if (this.bubbleText && Date.now() < this.bubbleUntil) {
+    if (this.bubbleText && this.bubbleFrames > 0) {
+      this.bubbleFrames--;
       frame = frame.slice();
       composer.bubble(frame, this.width, this.height, this.bubbleText);
     } else if (this.bubbleText) this.bubbleText = null;

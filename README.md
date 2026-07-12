@@ -6,11 +6,10 @@
 
 **A live, interactive pet that lives in a GitHub README.**
 
-This is Momó, and the image above is **live right now** — it never finishes loading.
-It's an endless GIF streamed frame-by-frame from a tiny server, which makes a README
-behave like a screen. Momó noticed you arrive. Momó will notice you leave.
-
-*(Static fallback if the stream is napping: [preview.gif](assets/preview.gif))*
+This is Momó, and the image above is **live** — a GIF streamed frame-by-frame from a
+tiny server, which makes a README behave like a screen. Momó greeted you when the page
+opened. Each visit streams for about a minute, then Momó asks for a refresh —
+every reload is a fresh hello.
 
 [How it works](#the-tricks) · [Interact](#interact) · [Status](#status) · [The plan](docs/PLAN.md)
 
@@ -39,8 +38,8 @@ its own 24-color palette so a viewer can join the stream at any tick.
 
 ## Interact
 
-Click one, watch the image above react — no refresh needed. You'll bounce through
-Momó's house for a second and land right back here. Momó remembers repeat feeders. ♥
+Click one — you'll bounce through Momó's house for a second and land back here,
+where Momó acts out your click the moment the page reopens. It remembers repeat feeders. ♥
 
 <div align="center">
 

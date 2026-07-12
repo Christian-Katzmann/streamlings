@@ -27,16 +27,31 @@ const saveLedger = () => { clearTimeout(saveTimer); saveTimer = setTimeout(() =>
 
 const pet = new Pet(ASSET_DIR);
 const composer = new Composer(ASSET_DIR, { ink: pet.ink, paper: pet.paper });
-const conns = new Set();
+const conns = new Map(); // res -> connection start ts
 let ticker = null;
+const WINDOW_MS = Number(process.env.STREAM_WINDOW_MS || 70000); // we end each stream window ourselves — before Camo cuts it mid-clip
+
+function farewellBytes(baseFrame) {
+  const f = baseFrame.slice();
+  composer.bubble(f, pet.width, pet.height, 'nap time! tap a button or refresh me');
+  return encodeFrame(f, pet.width, pet.height, pet.palette, TICK_MS);
+}
 
 function startTicker() {
   if (ticker) return;
   ticker = setInterval(() => {
+    const now = Date.now();
     const frame = pet.tick(composer);
     const bytes = encodeFrame(frame, pet.width, pet.height, pet.palette, TICK_MS);
-    for (const res of conns) {
+    let farewell = null;
+    for (const [res, started] of conns) {
       if (res.writableLength > 1 << 20) { res.destroy(); continue; } // drop slow readers
+      if (now - started > WINDOW_MS) {
+        farewell ||= farewellBytes(frame);
+        res.write(farewell);
+        res.end(); // graceful close: browser keeps the goodbye card as the final frame
+        continue;
+      }
       res.write(bytes);
     }
   }, TICK_MS);
@@ -73,7 +88,7 @@ const server = http.createServer((req, res) => {
       'Connection': 'keep-alive',
     });
     res.write(handshake(pet.width, pet.height));
-    conns.add(res);
+    conns.set(res, Date.now());
     pet.onViewers(conns.size);
     startTicker();
     req.on('close', () => { conns.delete(res); pet.onViewers(conns.size); stopTickerIfIdle(); });

@@ -7,7 +7,10 @@ while (gifenc && !(gifenc.GIFEncoder && gifenc.quantize)) gifenc = gifenc.defaul
 const { GIFEncoder } = gifenc;
 
 export function handshake(width, height) {
-  const b = Buffer.alloc(6 + 7 + 19);
+  // Deliberately NO NETSCAPE loop extension: when a stream window ends, the image
+  // freezes on its final frame (an instruction card) instead of deceptively
+  // replaying the recording as if the pet were still live.
+  const b = Buffer.alloc(6 + 7);
   let o = 0;
   b.write('GIF89a', o); o += 6;
   b.writeUInt16LE(width, o); o += 2;
@@ -15,10 +18,6 @@ export function handshake(width, height) {
   b.writeUInt8(0x70, o++); // no GCT, 8-bit color resolution
   b.writeUInt8(0, o++);    // bg color index
   b.writeUInt8(0, o++);    // aspect
-  // NETSCAPE2.0 infinite loop
-  for (const byte of [0x21, 0xFF, 0x0B]) b.writeUInt8(byte, o++);
-  b.write('NETSCAPE2.0', o); o += 11;
-  for (const byte of [0x03, 0x01, 0x00, 0x00, 0x00]) b.writeUInt8(byte, o++);
   return b;
 }
 
