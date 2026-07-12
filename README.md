@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://vmi3375405.contaboserver.net/momo/stage.gif" width="320" alt="Momó, live — this image never finishes loading" />
+<img src="https://momo.ktzm.dk/stage.gif" width="320" alt="Momó, live — this image never finishes loading" />
 
 # Streamlings
 
@@ -11,7 +11,7 @@ tiny server, which makes a README behave like a screen. Momó greeted you when t
 opened. Each visit streams for about a minute, then Momó asks for a refresh —
 every reload is a fresh hello.
 
-<img src="https://vmi3375405.contaboserver.net/momo/banner/top.gif" width="880" alt="a hand-drawn divider — it has a second job" />
+<img src="https://momo.ktzm.dk/banner/top.gif" width="880" alt="a hand-drawn divider — it has a second job" />
 
 <sub>⭐ **Star this repo while the page is open.** That divider above is not decoration —
 it erupts in fireworks with **your name in lights**, and Momó celebrates you by name.
@@ -19,7 +19,7 @@ it erupts in fireworks with **your name in lights**, and Momó celebrates you by
 
 [How it works](#the-tricks) · [Interact](#interact) · [The dollhouse](#the-dollhouse) · [Status](#status) · [The plan](docs/PLAN.md)
 
-<img src="https://vmi3375405.contaboserver.net/momo/px/top.gif" width="72" alt="" />
+<img src="https://momo.ktzm.dk/px/top.gif" width="72" alt="" />
 
 </div>
 
@@ -53,7 +53,7 @@ where Momó acts out your click the moment the page reopens. It remembers repeat
 
 <div align="center">
 
-[**🍖 feed**](https://vmi3375405.contaboserver.net/momo/act/feed?back=https://github.com/Christian-Katzmann/streamlings) &nbsp;·&nbsp; [**✋ pat**](https://vmi3375405.contaboserver.net/momo/act/pat?back=https://github.com/Christian-Katzmann/streamlings) &nbsp;·&nbsp; [**⚽ play**](https://vmi3375405.contaboserver.net/momo/act/play?back=https://github.com/Christian-Katzmann/streamlings)
+[**🍖 feed**](https://momo.ktzm.dk/act/feed?back=https://github.com/Christian-Katzmann/streamlings) &nbsp;·&nbsp; [**✋ pat**](https://momo.ktzm.dk/act/pat?back=https://github.com/Christian-Katzmann/streamlings) &nbsp;·&nbsp; [**⚽ play**](https://momo.ktzm.dk/act/play?back=https://github.com/Christian-Katzmann/streamlings)
 
 ⭐ **star** = fireworks with your name &nbsp;·&nbsp; 🍴 **fork** = Momó adopts the baby &nbsp;·&nbsp; [🤫 **whisper to Momó**](https://github.com/Christian-Katzmann/streamlings/issues/new?title=whisper%3A+hello+momo&body=Whisper+something+in+the+title.+Mom%C3%B3+reads+it%2C+replies%2C+and+eats+the+issue.+%F0%9F%90%99) — it replies, then eats the issue
 
@@ -62,7 +62,7 @@ where Momó acts out your click the moment the page reopens. It remembers repeat
 <details>
 <summary>🫳 there is a snoot here, hidden from the lazy loader. open to boop. (no reload — watch the stage above)</summary>
 <br>
-<div align="center"><img src="https://vmi3375405.contaboserver.net/momo/px/boop.gif" width="72" alt="boop delivered" /><br><sub>boop delivered. Momó felt that.</sub></div>
+<div align="center"><img src="https://momo.ktzm.dk/px/boop.gif" width="72" alt="boop delivered" /><br><sub>boop delivered. Momó felt that.</sub></div>
 </details>
 
 ## The dollhouse
@@ -72,11 +72,11 @@ or leave the page quiet for five minutes and it wanders off to bed.
 
 <div align="center">
 
-<img src="https://vmi3375405.contaboserver.net/momo/stage.gif" width="240" alt="the stage" /> <img src="https://vmi3375405.contaboserver.net/momo/room/bedroom.gif" width="240" alt="the bedroom" />
+<img src="https://momo.ktzm.dk/stage.gif" width="240" alt="the stage" /> <img src="https://momo.ktzm.dk/room/bedroom.gif" width="240" alt="the bedroom" />
 
 <sub>the stage &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; the bedroom</sub>
 
-<img src="https://vmi3375405.contaboserver.net/momo/px/mid.gif" width="72" alt="" />
+<img src="https://momo.ktzm.dk/px/mid.gif" width="72" alt="" />
 
 </div>
 
@@ -128,7 +128,7 @@ Artwork © Christian Katzmann — the code is MIT, the octopus is not.
 Designed and built with [Claude Code](https://claude.com/claude-code),
 from "wait, does GitHub allow that?" to an octopus with a diary.
 
-<img src="https://vmi3375405.contaboserver.net/momo/banner/bottom.gif" width="880" alt="" />
+<img src="https://momo.ktzm.dk/banner/bottom.gif" width="880" alt="" />
 
 <div align="center">
 
@@ -136,6 +136,6 @@ from "wait, does GitHub allow that?" to an octopus with a diary.
 
 🐙
 
-<img src="https://vmi3375405.contaboserver.net/momo/px/deep.gif" width="72" alt="" />
+<img src="https://momo.ktzm.dk/px/deep.gif" width="72" alt="" />
 
 </div>
