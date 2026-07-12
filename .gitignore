@@ -1,0 +1,7 @@
+node_modules/
+assets/frames/
+assets/manifest.json
+assets/palette.json
+data/
+*.log
+.DS_Store
