@@ -10,7 +10,8 @@ import { PNG } from 'pngjs';
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const ASSETS = path.join(ROOT, 'assets');
-const GAZE_CLIP_IDS = ['001', '021', '053', '062', '065', '070'];
+// only the clips whose per-frame detection passed visual QA (vision-agent pass)
+const GAZE_CLIP_IDS = ['053', '062', '070'];
 
 const manifest = JSON.parse(fs.readFileSync(path.join(ASSETS, 'manifest.json'), 'utf8'));
 const byId = Object.fromEntries(manifest.map(c => [c.id, c]));

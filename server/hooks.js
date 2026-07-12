@@ -48,16 +48,17 @@ export function handleEvent(event, payload, pet, ledger, save) {
     }
     case 'dependabot_alert': {
       const a = payload.action;
-      if (a === 'created' || a === 'reopened' || a === 'reintroduced') pet.mood = 'fleas';
-      else if (['fixed', 'dismissed', 'auto_dismissed'].includes(a)) pet.mood = 'sunny';
+      // fleas is its own flag — independent of CI weather, so neither clobbers the other
+      if (a === 'created' || a === 'reopened' || a === 'reintroduced') pet.setFlag('fleas', true);
+      else if (['fixed', 'dismissed', 'auto_dismissed'].includes(a)) pet.setFlag('fleas', false);
       break;
     }
     case 'workflow_run': {
       if (payload.action !== 'completed') return 'ignored';
       if (payload.workflow_run?.head_branch !== 'main') return 'ignored';
       const concl = payload.workflow_run?.conclusion;
-      if (concl === 'failure') pet.mood = 'rain';
-      else if (concl === 'success' && pet.mood === 'rain') { pet.mood = 'sunny'; pet.react('play', 'the build is green again!'); }
+      if (concl === 'failure') pet.setFlag('ciRed', true);
+      else if (concl === 'success' && pet.flags.ciRed) { pet.setFlag('ciRed', false); pet.react('play', 'the build is green again!'); }
       break;
     }
     case 'ping':

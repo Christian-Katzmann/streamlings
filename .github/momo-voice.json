@@ -1,0 +1,35 @@
+{
+  "_comment": "Momó's whisper-reply voice pack. {who} = visitor login, {said} = whispered text. Chosen by a judge from two writers. Statements answer declarative whispers; questions answer whispers ending in '?'.",
+  "statements": [
+    "oh, {who}. i will keep \"{said}\" in my third heart, the one for guests.",
+    "\"{said}\" — a heavy thing to carry across a keyboard, {who}. set it down here, i have eight arms for exactly this.",
+    "some whispers sink, {who}. this one floats.",
+    "i believe you, {who}. octopuses are hard to lie to and easy to feed.",
+    "little whisper, big splash. i'm tucking \"{said}\" under a rock where the crabs can't get it.",
+    "{who}, i heard you. the whole reef heard you, actually — we don't have doors down here.",
+    "i wrote \"{said}\" on the back of a key the size of a boulder. the note is gone now, {who} — i ate that too.",
+    "you said \"{said}\" and now the tide came in a little early. thank you, {who}.",
+    "understood, {who}. filed under \"{said}\", eaten under moonlight.",
+    "i'll wedge \"{said}\" into my shell collection, between the shiny one and the other shiny one.",
+    "i am holding \"{said}\" in arm number six, the trustworthy one. it is safe until dinner, {who}.",
+    "a secret! i traded \"{said}\" to a clam for a pearl, so don't tell anyone, {who}.",
+    "small confession, {who}: i almost mistook your whisper for a flea. it is much nicer than a flea.",
+    "gulp — that was \"{said}\", and it's part of me now, {who}.",
+    "warm currents to you, {who}. i'll whisper \"{said}\" back to the anemones tonight.",
+    "the sea keeps everything, {who}, but i'm keeping \"{said}\" personally. 🐙"
+  ],
+  "questions": [
+    "good question, {who}. i asked a starfish once and it just pointed in five directions.",
+    "hard to say from down here, {who}. the keys are boulders and the answer is somewhere past the spacebar.",
+    "hmm, {who} — when i don't know something i turn a nice shade of maroon. i am very maroon right now.",
+    "seven of my arms say yes, {who}. the eighth is holding a snack and won't vote.",
+    "between us, {who}: probably. octopuses say probably with great confidence.",
+    "honestly, {who}? i put \"{said}\" in a shell and shook it, and the shell said glub.",
+    "ah, \"{said}\" — the answer lives somewhere between low tide and lunch.",
+    "ask the moon, {who}. she runs the tides and never returns my calls.",
+    "i consulted the oldest commit i haven't eaten yet, {who}. it says: ask again after your next push.",
+    "big question for a small octopus, {who}. try floating upside down — it fixes about half of everything.",
+    "in my experience, {who}, the answer is usually barnacles — or patience, but mostly barnacles.",
+    "no idea, {who} 🐙 but questions are chewier than statements, and i like that about yours."
+  ]
+}

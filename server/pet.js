@@ -1,7 +1,7 @@
 // The pet brain: a clip-chaining state machine over the manifest.
-// v2: moods (rain = red CI, fleas = open vulns), rooms (stage/bedroom dollhouse),
-// celebrations (star/fork eruptions with the actor's name), and gaze targets.
-// Idle pool is spawn-weighted (common idles rotate, rare clips are easter eggs).
+// v2: moods (rain = red CI, fleas = open vulns, independent flags), rooms
+// (stage/bedroom dollhouse), celebrations (star/fork eruptions with the actor's name),
+// and gaze targets. Idle pool is spawn-weighted (common idles rotate, rare = easter eggs).
 import fs from 'node:fs';
 import path from 'node:path';
 import { PNG } from 'pngjs';
@@ -24,7 +24,11 @@ const REACTIONS = {
 };
 const SAD_IDS = ['019', '028', '039', '040', '049', '018'];
 const SLEEP_AFTER_EMPTY_MS = 5 * 60 * 1000;
-const CELEBRATION_TICKS = 140; // ~14s of banner fireworks
+const CELEBRATION_TICKS = 140;  // ~14s of banner fireworks
+const PENDING_MS = 45000;       // how long a normal armed reaction waits for its actor
+const CELEBRATE_PENDING_MS = 90000;
+const QUEUE_TTL_MS = 30000;     // a queued reaction that never gets shown is dropped
+const PRIO = { normal: 1, celebrate: 2 };
 
 export class Pet {
   constructor(assetDir) {
@@ -42,19 +46,24 @@ export class Pet {
       sad: SAD_IDS.map(id => this.byId[id]).filter(Boolean),
     };
     this.cache = new Map(); // key -> [Uint8Array indexed frames]
-    this.queue = [];        // [{clip, bubble}]
-    this.pending = null;    // reaction armed at click/webhook time, played on next stream-open
+    this.queue = [];        // [{clip, bubble, until}]
+    this.pending = null;    // { clip, bubble, until, prio } — armed for the actor's return
     this.bubbleText = null;
     this.bubbleFrames = 0;  // frame-countdown, not wall-clock: survives the bounce
-    this.viewers = 0;
+    this.stageViewers = 0;
+    this.bedroomViewers = 0;
     this.emptySince = Date.now();
     this.width = 400; this.height = 400;
-    this.mood = 'sunny';    // sunny | rain (CI red) | fleas (open vulns)
+    this.flags = { fleas: false, ciRed: false }; // independent; mood is derived
     this.room = 'stage';    // stage | bedroom — the dollhouse
     this.celebration = null; // { text, kind, ticks }
     this.gaze = { dy: 0, dx: 0 }; // pupil offset target, set by sensors/clicks
     this.setClip(this.pickIdle());
   }
+
+  get viewers() { return this.stageViewers + this.bedroomViewers; }
+  get mood() { return this.flags.fleas ? 'fleas' : this.flags.ciRed ? 'rain' : 'sunny'; }
+  setFlag(name, on) { if (name in this.flags) this.flags[name] = !!on; }
 
   loadFrames(clip) {
     if (this.cache.has(clip.key)) return this.cache.get(clip.key);
@@ -77,7 +86,7 @@ export class Pet {
   }
 
   pickIdle() {
-    // a sad mood colors the idle rotation (that's the whole trojan-utility trick:
+    // a sad mood colors the idle rotation (that's the trojan-utility trick:
     // a red build is ignorable, a crying octopus is not)
     if (this.mood !== 'sunny' && this.pools.sad.length && Math.random() < 0.55) return this.pickWeighted(this.pools.sad);
     const asleep = this.viewers === 0 && Date.now() - this.emptySince > SLEEP_AFTER_EMPTY_MS;
@@ -105,17 +114,29 @@ export class Pet {
     return { clip, bubble };
   }
 
+  // a higher- or equal-priority pending, still within its window, is never clobbered
+  arm(clip, bubble, prio, ttl) {
+    const now = Date.now();
+    if (this.pending && this.pending.until > now && this.pending.prio > prio) return;
+    this.pending = { clip, bubble, until: now + ttl, prio };
+  }
+
+  enqueue(entry) {
+    this.queue.push({ ...entry, until: Date.now() + QUEUE_TTL_MS });
+    if (this.queue.length > 4) this.queue.shift();
+  }
+
   react(kind, bubbleOverride) {
     if (!REACTIONS[kind]) return;
     const { clip, bubble: def } = this.pickReaction(kind);
     const bubble = bubbleOverride ?? def;
-    if (this.viewers > 0) {
+    if (this.stageViewers > 0) {
       const interruptible = ['idle', 'sleep', 'look-around'].includes(this.clip.state_hint);
-      if (interruptible && this.queue.length === 0) { this.playNow(clip, bubble); }
-      else { this.queue.push({ clip, bubble }); if (this.queue.length > 4) this.queue.shift(); }
+      if (interruptible && this.queue.length === 0) this.playNow(clip, bubble);
+      else this.enqueue({ clip, bubble });
     }
     // ALSO arm for the actor's own return (the bounce/reload reopens the stream)
-    this.pending = { clip, bubble, until: Date.now() + 45000 };
+    this.arm(clip, bubble, PRIO.normal, PENDING_MS);
   }
 
   // star/fork eruption: stage reaction + banner fireworks with the actor's name
@@ -123,19 +144,22 @@ export class Pet {
     const text = kind === 'fork' ? `a little one! hi @${login}` : `thank you @${login} ★`;
     this.celebration = { text, kind, ticks: CELEBRATION_TICKS };
     const { clip } = this.pickReaction(kind);
-    if (this.viewers > 0) this.playNow(clip, text);
-    this.pending = { clip, bubble: text, until: Date.now() + 90000 };
-    // encore after the first clip
-    const encore = this.pickReaction(kind);
-    this.queue.push({ clip: encore.clip, bubble: null });
+    if (this.stageViewers > 0) {
+      this.playNow(clip, text);
+      const encore = this.pickReaction(kind);
+      this.enqueue({ clip: encore.clip, bubble: null }); // encore only when someone is watching
+    }
+    this.arm(clip, text, PRIO.celebrate, CELEBRATE_PENDING_MS);
   }
 
-  onViewers(n) {
-    const wasEmpty = this.viewers === 0;
-    this.viewers = n;
-    if (n === 0) { this.emptySince = Date.now(); return; }
-    if (!wasEmpty) return;
-    // a viewer just arrived: armed reaction beats greeting
+  // room-aware presence: greet/pending consume only when the STAGE gains its first
+  // viewer (reactions play on stage). Bedroom is a passive "catch it napping" window.
+  onPresence(stage, bedroom) {
+    const stageWasEmpty = this.stageViewers === 0;
+    this.stageViewers = stage;
+    this.bedroomViewers = bedroom;
+    if (this.viewers === 0) { this.emptySince = Date.now(); return; }
+    if (stage === 0 || !stageWasEmpty) return;
     if (this.pending && Date.now() < this.pending.until) {
       const { clip, bubble } = this.pending;
       this.pending = null;
@@ -147,22 +171,28 @@ export class Pet {
   }
 
   moodBubble() {
-    if (this.mood === 'rain') return 'the build is red… fix it?';
-    if (this.mood === 'fleas') return 'i have fleas! (deps have alerts)';
+    if (this.flags.fleas) return 'i have fleas! (deps have alerts)';
+    if (this.flags.ciRed) return 'the build is red… fix it?';
     return null;
   }
 
-  // eye centers for the current frame, if this clip has a verified eye map
-  eyesForFrame() {
+  // eye centers for a given frame index, if this clip has a verified eye map
+  eyesForIndex(idx) {
     const m = this.eyemap[this.clip.id];
     if (!m) return null;
-    return m[Math.min(this.frameIdx, m.length - 1)] || null;
+    return m[Math.min(idx, m.length - 1)] || null;
+  }
+
+  dropStaleQueue() {
+    const now = Date.now();
+    while (this.queue.length && this.queue[0].until < now) this.queue.shift();
   }
 
   // advances state one tick and returns the composited stage frame
   tick(composer) {
     if (this.celebration && --this.celebration.ticks <= 0) this.celebration = null;
     if (this.frameIdx >= this.frames.length) {
+      this.dropStaleQueue();
       const next = this.queue.shift();
       if (next) {
         this.setClip(next.clip);
@@ -174,14 +204,15 @@ export class Pet {
           ? 'bedroom' : 'stage';
         const clip = this.room === 'bedroom' ? this.pickWeighted(this.pools.sleep) : this.pickIdle();
         this.setClip(clip);
-        // an occasional mood complaint while idling
         const mb = this.moodBubble();
         if (mb && Math.random() < 0.3) { this.bubbleText = mb; this.bubbleFrames = 30; }
       }
     }
+    // capture eyes for THIS frame index BEFORE advancing (off-by-one fix)
+    const curIdx = this.frameIdx;
     let frame = this.frames[this.frameIdx++];
     const bubbling = this.bubbleText && this.bubbleFrames > 0;
-    const eyes = !bubbling && this.eyesForFrame();
+    const eyes = !bubbling ? this.eyesForIndex(curIdx) : null;
     const gazing = eyes && (this.gaze.dx || this.gaze.dy);
     if (bubbling || gazing) frame = frame.slice();
     if (gazing) composer.gazeDots(frame, this.width, eyes, this.gaze);
