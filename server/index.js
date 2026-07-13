@@ -120,7 +120,7 @@ function feature(kind, bubble, ttl = TTL.action) {
     until: Date.now() + ttl,
   };
   featuredGifKey = `${kind}:${scene.clip.id}:${scene.bubble || ''}`;
-  featuredGif = episodeGif([scene, ...pet.episodeScenes(REACTION_TAIL_SCENES, 'sunny')]);
+  featuredGif = episodeGif([pet.scene('wake'), scene, ...pet.episodeScenes(REACTION_TAIL_SCENES, 'sunny')]);
   saveLedger();
   return scene;
 }
@@ -130,7 +130,7 @@ function featureEpisodeGif(featured) {
   if (featuredGif && featuredGifKey === key) return featuredGif;
   const scene = pet.scene(featured.kind, featured.bubble, featured.clipId);
   featuredGifKey = key;
-  featuredGif = episodeGif([scene, ...pet.episodeScenes(REACTION_TAIL_SCENES, 'sunny')]);
+  featuredGif = episodeGif([pet.scene('wake'), scene, ...pet.episodeScenes(REACTION_TAIL_SCENES, 'sunny')]);
   return featuredGif;
 }
 

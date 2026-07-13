@@ -25,15 +25,15 @@ Every image request now gets a **complete GIF**, generated before Camo's deadlin
 `NETSCAPE2.0` infinite-loop extension and a GIF trailer. The initial fix used one short
 scene, which avoided freezing but felt like an animated wallpaper. The stage now gets a
 roughly minute-long episode assembled from 12 different clips. Three idle variants
-rotate between loads. Reactions play first, followed by four calm scenes, before the
-episode repeats.
+rotate between loads. Event episodes greet first, show the reaction second, then play
+four calm scenes before repeating.
 
 Recent actions are durable state, not ephemeral live frames:
 
 | Mechanic | Result |
 |---|---|
 | Idle / greeting | Varied 12-scene episode; the next request rotates to another variant |
-| Feed / pat / play | Kept; the bounce reloads the page with the reaction first, then four more scenes |
+| Feed / pat / play | Kept; the bounce reloads the page with a hello, the reaction, then four more scenes |
 | Star / fork | Redesigned; named event persists 30 minutes and appears after refresh or **wake Momó** |
 | Whisper | Kept; reply Action works independently, and the latest whisper can appear on return |
 | Boop | Redesigned; the expanded section contains its own visible reaction |
