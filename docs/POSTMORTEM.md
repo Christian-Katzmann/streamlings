@@ -50,8 +50,8 @@ Verified on 2026-07-13 against github.com, not only the origin:
 
 - Stage through Camo: **2.41 s**, 238,850 B, 36/36 decoded frames, 5.04 s loop, valid trailer.
 - Reaction episode through Camo: **2.41 s**, 436,870 B, 90/90 decoded frames, 25.2 s, valid trailer.
-- Idle episodes at the live origin: **883–893 KB**, 216/216 decoded frames, 64.26 s,
-  valid trailer. Consecutive requests returned different episode hashes.
+- Idle episode through Camo: **1.28 s**, 892,628 B, 216/216 decoded frames, 64.26 s,
+  valid trailer. Consecutive origin requests returned different episode hashes.
 - Star banner through Camo: **2.10 s**, 45,891 B, 24/24 frames, valid trailer.
 - Boop through Camo: **2.25 s**, 152,458 B, 36/36 frames, valid trailer.
 - The GitHub browser showed different frames more than a minute apart while preserving
