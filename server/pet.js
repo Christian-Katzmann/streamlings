@@ -102,7 +102,8 @@ export class Pet {
     else if (kind === 'sleep') clip = this.pickWeighted(this.pools.sleep);
     else {
       const reaction = REACTIONS[kind] || REACTIONS.wake;
-      clip = this.byId[clipId] || this.byId[reaction.ids[Math.floor(Math.random() * reaction.ids.length)]];
+      const available = reaction.ids.map(id => this.byId[id]).filter(Boolean);
+      clip = this.byId[clipId] || available[Math.floor(Math.random() * available.length)] || this.pickIdle();
     }
     const bubble = bubbleOverride ?? (kind === 'idle' ? this.moodBubble() : this.defaultBubble(kind));
     return this.sceneFromClip(kind, clip, bubble);

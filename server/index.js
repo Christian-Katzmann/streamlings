@@ -66,7 +66,7 @@ function episodeGif(scenes) {
 const episodePools = { sunny: [], rain: [], fleas: [] };
 const episodeCursor = { sunny: 0, rain: 0, fleas: 0 };
 const episodeCacheKey = crypto.createHash('sha256').update(JSON.stringify({
-  version: 1,
+  version: 2,
   scenes: EPISODE_SCENES,
   framesPerScene: EPISODE_FRAMES_PER_SCENE,
   manifest: pet.manifest.map(clip => [clip.key, clip.frames]),
@@ -78,7 +78,8 @@ fs.mkdirSync(episodeCacheDir, { recursive: true });
 function cachedEpisode(mood, index) {
   const file = path.join(episodeCacheDir, `${mood}-${index}.gif`);
   if (fs.existsSync(file)) return fs.readFileSync(file);
-  const bytes = episodeGif(pet.episodeScenes(EPISODE_SCENES, mood));
+  const scenes = [pet.scene('wake'), ...pet.episodeScenes(EPISODE_SCENES - 1, mood)];
+  const bytes = episodeGif(scenes);
   const tmp = `${file}.tmp`;
   fs.writeFileSync(tmp, bytes);
   fs.renameSync(tmp, file);
