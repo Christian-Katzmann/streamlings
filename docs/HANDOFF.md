@@ -1,8 +1,8 @@
 # Streamlings — Handoff & Debug Brief
 
 **Status: fixed and verified through GitHub/Camo on 2026-07-13.** Streamlings now serves
-complete self-looping GIFs, persists recent reactions, renders named star thanks after
-the documented wake/refresh step, and gives boop its own visible reaction. See
+varied minute-long self-looping episodes, persists recent reactions, renders named star
+thanks after the documented wake/refresh step, and gives boop its own visible reaction. See
 `docs/POSTMORTEM.md` for the measured result. The failure analysis below is preserved as
 historical context.
 

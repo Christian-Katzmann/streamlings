@@ -14,20 +14,33 @@ export function encodeLoop(frames, width, height, palette, options = {}) {
     bubble = null,
     composer = null,
   } = options;
-  if (!frames.length) throw new Error('cannot encode an empty GIF');
+  return encodeEpisode([{ frames, fps, bubble }], width, height, palette, {
+    framesPerScene: maxFrames,
+    composer,
+  });
+}
 
-  const count = Math.min(maxFrames, frames.length);
-  const durationMs = frames.length / fps * 1000;
-  const delay = Math.max(20, Math.round(durationMs / count));
+export function encodeEpisode(scenes, width, height, palette, options = {}) {
+  const { framesPerScene = 18, composer = null } = options;
+  if (!scenes.length || scenes.some(scene => !scene.frames?.length)) {
+    throw new Error('cannot encode an empty GIF');
+  }
+
   const enc = GIFEncoder();
+  let outputIndex = 0;
 
-  for (let i = 0; i < count; i++) {
-    const source = frames[Math.floor(i * frames.length / count)];
-    const frame = bubble ? source.slice() : source;
-    if (bubble) composer.bubble(frame, width, height, bubble);
-    const frameOptions = { delay, dispose: 1 };
-    if (i === 0) Object.assign(frameOptions, { palette, repeat: 0 });
-    enc.writeFrame(frame, width, height, frameOptions);
+  for (const scene of scenes) {
+    const count = Math.min(framesPerScene, scene.frames.length);
+    const durationMs = scene.frames.length / (scene.fps || scene.clip?.fps || 12) * 1000;
+    const delay = Math.max(20, Math.round(durationMs / count));
+    for (let i = 0; i < count; i++) {
+      const source = scene.frames[Math.floor(i * scene.frames.length / count)];
+      const frame = scene.bubble ? source.slice() : source;
+      if (scene.bubble) composer.bubble(frame, width, height, scene.bubble);
+      const frameOptions = { delay, dispose: 1 };
+      if (outputIndex++ === 0) Object.assign(frameOptions, { palette, repeat: 0 });
+      enc.writeFrame(frame, width, height, frameOptions);
+    }
   }
   enc.finish();
   return Buffer.from(enc.bytes());

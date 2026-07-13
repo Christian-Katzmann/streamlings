@@ -22,15 +22,18 @@ new events. That is why the transport model—not only one GIF flag—had to cha
 ## The new model
 
 Every image request now gets a **complete GIF**, generated before Camo's deadline with a
-`NETSCAPE2.0` infinite-loop extension and a GIF trailer. The full scene reaches Camo,
-then loops locally for as long as the README remains open.
+`NETSCAPE2.0` infinite-loop extension and a GIF trailer. The initial fix used one short
+scene, which avoided freezing but felt like an animated wallpaper. The stage now gets a
+roughly minute-long episode assembled from 12 different clips. Three idle variants
+rotate between loads. Reactions play first, followed by four calm scenes, before the
+episode repeats.
 
 Recent actions are durable state, not ephemeral live frames:
 
 | Mechanic | Result |
 |---|---|
-| Idle / greeting | Clean bounded scene selected at load |
-| Feed / pat / play | Kept; the existing bounce reloads the page with the reaction |
+| Idle / greeting | Varied 12-scene episode; the next request rotates to another variant |
+| Feed / pat / play | Kept; the bounce reloads the page with the reaction first, then four more scenes |
 | Star / fork | Redesigned; named event persists 30 minutes and appears after refresh or **wake Momó** |
 | Whisper | Kept; reply Action works independently, and the latest whisper can appear on return |
 | Boop | Redesigned; the expanded section contains its own visible reaction |
@@ -39,13 +42,16 @@ Recent actions are durable state, not ephemeral live frames:
 | Synchronized dollhouse | Cut; separately truncated image fetches cannot remain synchronized |
 
 This is less magical than the original premise and much more real: Momó wakes on each
-load, remembers what happened, and never freezes.
+load, remembers what happened, and changes activity for about a minute before repeating.
 
 ## Final verification
 
 Verified on 2026-07-13 against github.com, not only the origin:
 
 - Stage through Camo: **2.41 s**, 238,850 B, 36/36 decoded frames, 5.04 s loop, valid trailer.
+- Reaction episode through Camo: **2.41 s**, 436,870 B, 90/90 decoded frames, 25.2 s, valid trailer.
+- Idle episodes at the live origin: **883–893 KB**, 216/216 decoded frames, 64.26 s,
+  valid trailer. Consecutive requests returned different episode hashes.
 - Star banner through Camo: **2.10 s**, 45,891 B, 24/24 frames, valid trailer.
 - Boop through Camo: **2.25 s**, 152,458 B, 36/36 frames, valid trailer.
 - The GitHub browser showed different frames more than a minute apart while preserving

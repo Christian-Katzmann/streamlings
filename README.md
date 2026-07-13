@@ -6,9 +6,9 @@
 
 **A pet that wakes up inside a GitHub README.**
 
-Momó's animation is generated from the repo's current state when this page loads, then
-loops locally. Feed, pat, play, stars, forks, whispers, commits, CI, and dependency
-alerts change what the next load shows.
+Each load gets a different minute-long Momó episode made from 12 animations. It only
+loops after the full episode. Feed, pat, play, stars, forks, whispers, commits, CI, and
+dependency alerts change what the next load shows.
 
 <img src="https://momo.ktzm.dk/banner/top.gif" width="880" alt="hand-drawn divider" />
 
@@ -52,8 +52,8 @@ instruction and final trailer. Camo receives the whole file; the browser loops i
 
 | Input | Delivery |
 |---|---|
-| Page load | A clean, complete Momó loop selected from 77 hand-tagged clips |
-| Feed / pat / play | Server records the action; the bounce reloads GitHub with the reaction |
+| Page load | One of several minute-long episodes assembled from 77 hand-tagged clips |
+| Feed / pat / play | Server records the action; the bounce reloads GitHub with the reaction first, then more scenes |
 | Star / fork | Webhook stores the actor's name; refresh or **wake Momó** to see it |
 | Boop | Opening the section loads a dedicated visible reaction GIF |
 | CI / Dependabot / commits | Persistent repo mood shown on later loads |
@@ -65,7 +65,7 @@ stays private; this public repo contains the engine and a small preview only.
 
 ## What survived
 
-- **Working:** looping pet, feeder memory, named star/fork thanks, visible boop, CI and
+- **Working:** varied pet episodes, feeder memory, named star/fork thanks, visible boop, CI and
   dependency moods, commit metabolism, whispers, diary, hand-drawn banners.
 - **Removed:** live presence, scroll gaze, synchronized rooms, and instant no-reload
   stage reactions. Camo makes those delivery paths impossible.

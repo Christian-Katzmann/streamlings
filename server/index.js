@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Pet } from './pet.js';
 import { Composer } from './compose.js';
-import { encodeLoop } from './gif-stream.js';
+import { encodeLoop, encodeEpisode } from './gif-stream.js';
 import { verifySignature, handleEvent } from './hooks.js';
 
 const PORT = Number(process.env.PORT || 8787);
@@ -19,6 +19,10 @@ const REPO_SLUG = process.env.REPO_SLUG || 'Christian-Katzmann/streamlings';
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || '';
 const MAX_BODY = 1 << 20;
 const BANNER_W = 900, BANNER_H = 110, PX_W = 72, PX_H = 14;
+const EPISODE_SCENES = Number(process.env.EPISODE_SCENES || 12);
+const EPISODE_VARIANTS = Number(process.env.EPISODE_VARIANTS || 3);
+const EPISODE_FRAMES_PER_SCENE = Number(process.env.EPISODE_FRAMES_PER_SCENE || 18);
+const REACTION_TAIL_SCENES = Number(process.env.REACTION_TAIL_SCENES || 4);
 const TTL = {
   action: 60_000,
   build: 2 * 60_000,
@@ -49,6 +53,43 @@ function saveLedger() {
 const pet = new Pet(ASSET_DIR, ledger.flags);
 const composer = new Composer(ASSET_DIR, { ink: pet.ink, paper: pet.paper });
 const gifCache = new Map();
+let featuredGif = null;
+let featuredGifKey = null;
+
+function episodeGif(scenes) {
+  return encodeEpisode(scenes, pet.width, pet.height, pet.palette, {
+    framesPerScene: EPISODE_FRAMES_PER_SCENE,
+    composer,
+  });
+}
+
+const episodePools = { sunny: [], rain: [], fleas: [] };
+const episodeCursor = { sunny: 0, rain: 0, fleas: 0 };
+const episodeCacheKey = crypto.createHash('sha256').update(JSON.stringify({
+  version: 1,
+  scenes: EPISODE_SCENES,
+  framesPerScene: EPISODE_FRAMES_PER_SCENE,
+  manifest: pet.manifest.map(clip => [clip.key, clip.frames]),
+  palette: pet.palette,
+})).digest('hex').slice(0, 12);
+const episodeCacheDir = path.join(DATA, 'episodes', episodeCacheKey);
+fs.mkdirSync(episodeCacheDir, { recursive: true });
+
+function cachedEpisode(mood, index) {
+  const file = path.join(episodeCacheDir, `${mood}-${index}.gif`);
+  if (fs.existsSync(file)) return fs.readFileSync(file);
+  const bytes = episodeGif(pet.episodeScenes(EPISODE_SCENES, mood));
+  const tmp = `${file}.tmp`;
+  fs.writeFileSync(tmp, bytes);
+  fs.renameSync(tmp, file);
+  return bytes;
+}
+
+const episodeStarted = Date.now();
+for (let i = 0; i < EPISODE_VARIANTS; i++) episodePools.sunny.push(cachedEpisode('sunny', i));
+episodePools.rain.push(cachedEpisode('rain', 0));
+episodePools.fleas.push(cachedEpisode('fleas', 0));
+console.log(`episodes ready: ${EPISODE_VARIANTS + 2} variants, ${EPISODE_SCENES} scenes each, ${Date.now() - episodeStarted}ms`);
 
 function cacheGif(key, build) {
   if (gifCache.has(key)) return gifCache.get(key);
@@ -62,6 +103,8 @@ function activeFeature() {
   if (!ledger.featured) return null;
   if (ledger.featured.until > Date.now()) return ledger.featured;
   delete ledger.featured;
+  featuredGif = null;
+  featuredGifKey = null;
   saveLedger();
   return null;
 }
@@ -75,12 +118,25 @@ function feature(kind, bubble, ttl = TTL.action) {
     at: Date.now(),
     until: Date.now() + ttl,
   };
+  featuredGifKey = `${kind}:${scene.clip.id}:${scene.bubble || ''}`;
+  featuredGif = episodeGif([scene, ...pet.episodeScenes(REACTION_TAIL_SCENES, 'sunny')]);
   saveLedger();
   return scene;
 }
 
-function sceneFromFeature(f) {
-  return f ? pet.scene(f.kind, f.bubble, f.clipId) : pet.scene('idle');
+function featureEpisodeGif(featured) {
+  const key = `${featured.kind}:${featured.clipId}:${featured.bubble || ''}`;
+  if (featuredGif && featuredGifKey === key) return featuredGif;
+  const scene = pet.scene(featured.kind, featured.bubble, featured.clipId);
+  featuredGifKey = key;
+  featuredGif = episodeGif([scene, ...pet.episodeScenes(REACTION_TAIL_SCENES, 'sunny')]);
+  return featuredGif;
+}
+
+function nextIdleEpisode() {
+  const mood = pet.mood;
+  const pool = episodePools[mood] || episodePools.sunny;
+  return pool[episodeCursor[mood]++ % pool.length];
 }
 
 function sceneGif(scene) {
@@ -161,8 +217,12 @@ const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://x');
   const p = url.pathname;
 
-  if (p === '/stage.gif') { sendGif(res, sceneGif(sceneFromFeature(activeFeature()))); return; }
-  if (p === '/room/bedroom.gif') { sendGif(res, sceneGif(pet.scene('sleep', 'shhh…'))); return; }
+  if (p === '/stage.gif') {
+    const featured = activeFeature();
+    sendGif(res, featured ? featureEpisodeGif(featured) : nextIdleEpisode());
+    return;
+  }
+  if (p === '/room/bedroom.gif') { sendGif(res, nextIdleEpisode()); return; }
   if (p === '/banner/top.gif') { sendGif(res, bannerGif(activeFeature())); return; }
   if (p === '/banner/bottom.gif') { sendGif(res, bannerGif(activeFeature(), 12)); return; }
   if (/^\/px\/(top|mid|deep)\.gif$/.test(p)) { sendGif(res, sensorGif(p)); return; }

@@ -86,6 +86,16 @@ export class Pet {
     return bubbles?.[Math.floor(Math.random() * bubbles.length)] ?? null;
   }
 
+  moodBubble(mood = this.mood) {
+    if (mood === 'fleas') return 'i have fleas! (dependency alerts)';
+    if (mood === 'rain') return 'the build is red… fix it?';
+    return null;
+  }
+
+  sceneFromClip(kind, clip, bubble = null) {
+    return { kind, clip, frames: this.loadFrames(clip), bubble };
+  }
+
   scene(kind = 'idle', bubbleOverride, clipId) {
     let clip;
     if (kind === 'idle') clip = this.pickIdle();
@@ -94,10 +104,23 @@ export class Pet {
       const reaction = REACTIONS[kind] || REACTIONS.wake;
       clip = this.byId[clipId] || this.byId[reaction.ids[Math.floor(Math.random() * reaction.ids.length)]];
     }
-    const moodBubble = this.flags.fleas
-      ? 'i have fleas! (dependency alerts)'
-      : this.flags.ciRed ? 'the build is red… fix it?' : null;
-    const bubble = bubbleOverride ?? (kind === 'idle' ? moodBubble : this.defaultBubble(kind));
-    return { kind, clip, frames: this.loadFrames(clip), bubble };
+    const bubble = bubbleOverride ?? (kind === 'idle' ? this.moodBubble() : this.defaultBubble(kind));
+    return this.sceneFromClip(kind, clip, bubble);
+  }
+
+  episodeScenes(count, mood = this.mood) {
+    const calm = [...this.pools.idle, ...this.pools.look];
+    const source = mood === 'sunny' ? calm : [...this.pools.sad, ...this.pools.sad, ...calm];
+    const pool = source.length ? source : this.manifest;
+    const shuffled = [...pool];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return Array.from({ length: count }, (_, i) => {
+      const clip = shuffled[i % shuffled.length];
+      const bubble = i === 0 ? this.moodBubble(mood) : null;
+      return this.sceneFromClip('idle', clip, bubble);
+    });
   }
 }
