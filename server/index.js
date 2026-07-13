@@ -22,7 +22,6 @@ const BANNER_W = 900, BANNER_H = 110, PX_W = 72, PX_H = 14;
 const EPISODE_SCENES = Number(process.env.EPISODE_SCENES || 12);
 const EPISODE_VARIANTS = Number(process.env.EPISODE_VARIANTS || 3);
 const EPISODE_FRAMES_PER_SCENE = Number(process.env.EPISODE_FRAMES_PER_SCENE || 18);
-const REACTION_TAIL_SCENES = Number(process.env.REACTION_TAIL_SCENES || 4);
 const TTL = {
   action: 60_000,
   build: 2 * 60_000,
@@ -120,7 +119,7 @@ function feature(kind, bubble, ttl = TTL.action) {
     until: Date.now() + ttl,
   };
   featuredGifKey = `${kind}:${scene.clip.id}:${scene.bubble || ''}`;
-  featuredGif = episodeGif([pet.scene('wake'), scene, ...pet.episodeScenes(REACTION_TAIL_SCENES, 'sunny')]);
+  featuredGif = episodeGif([pet.scene('wake'), scene]);
   saveLedger();
   return scene;
 }
@@ -130,7 +129,7 @@ function featureEpisodeGif(featured) {
   if (featuredGif && featuredGifKey === key) return featuredGif;
   const scene = pet.scene(featured.kind, featured.bubble, featured.clipId);
   featuredGifKey = key;
-  featuredGif = episodeGif([pet.scene('wake'), scene, ...pet.episodeScenes(REACTION_TAIL_SCENES, 'sunny')]);
+  featuredGif = episodeGif([pet.scene('wake'), scene]);
   return featuredGif;
 }
 

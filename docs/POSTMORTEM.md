@@ -25,15 +25,14 @@ Every image request now gets a **complete GIF**, generated before Camo's deadlin
 `NETSCAPE2.0` infinite-loop extension and a GIF trailer. The initial fix used one short
 scene, which avoided freezing but felt like an animated wallpaper. The stage now gets a
 roughly minute-long episode assembled from 12 different clips. Three idle variants
-rotate between loads. Event episodes greet first, show the reaction second, then play
-four calm scenes before repeating.
+rotate between loads. Event episodes greet first, show the reaction second, then repeat.
 
 Recent actions are durable state, not ephemeral live frames:
 
 | Mechanic | Result |
 |---|---|
 | Idle / greeting | Varied 12-scene episode; the next request rotates to another variant |
-| Feed / pat / play | Kept; the bounce reloads the page with a hello, the reaction, then four more scenes |
+| Feed / pat / play | Kept; the bounce reloads the page with a hello followed by the reaction |
 | Star / fork | Redesigned; named event persists 30 minutes and appears after refresh or **wake Momó** |
 | Whisper | Kept; reply Action works independently, and the latest whisper can appear on return |
 | Boop | Redesigned; the expanded section contains its own visible reaction |
@@ -49,7 +48,7 @@ load, remembers what happened, and changes activity for about a minute before re
 Verified on 2026-07-13 against github.com, not only the origin:
 
 - Stage through Camo: **2.41 s**, 238,850 B, 36/36 decoded frames, 5.04 s loop, valid trailer.
-- Reaction episode through Camo: **2.41 s**, 436,870 B, 90/90 decoded frames, 25.2 s, valid trailer.
+- Reaction episode through Camo: a complete hello followed by the event reaction.
 - Idle episode through Camo: **1.28 s**, 892,628 B, 216/216 decoded frames, 64.26 s,
   valid trailer. Consecutive origin requests returned different episode hashes.
 - Star banner through Camo: **2.10 s**, 45,891 B, 24/24 frames, valid trailer.

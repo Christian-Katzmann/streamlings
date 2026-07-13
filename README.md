@@ -55,7 +55,7 @@ instruction and final trailer. Camo receives the whole file; the browser loops i
 | Input | Delivery |
 |---|---|
 | Page load | A hello, then one of several minute-long episodes assembled from 77 hand-tagged clips |
-| Feed / pat / play | Server records the action; after the hello, the bounce shows the reaction and more scenes |
+| Feed / pat / play | Server records the action; after the hello, the bounce shows the reaction |
 | Star / fork | Webhook stores the actor's name; refresh or **wake Momó** to see it |
 | Boop | Opening the section loads a dedicated visible reaction GIF |
 | CI / Dependabot / commits | Persistent repo mood shown on later loads |
