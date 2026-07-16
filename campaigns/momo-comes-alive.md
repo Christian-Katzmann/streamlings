@@ -4,20 +4,20 @@
 
 ## Scope
 
-Streamlings is currently dead on GitHub: the reverse-proxy block for momo.ktzm.dk lived inside another project's deploy artifact and was wiped on 2026-07-13, so every README image 502s through Camo — and nothing noticed for three days. This campaign (1) moves Momó to its own Fly.io home with durable state and automatic TLS, (2) adds a heartbeat that validates the *real* delivery path (the Camo URLs GitHub renders) and raises a sticky issue on failure, and then (3) rebuilds the experience toward the original "live pet" intent within measured platform physics: an animated-SVG stage that plays indefinitely client-side (verified: Camo serves `image/svg+xml` with data-URI images and inline CSS allowed), a reaction-priority + memory model so stars are never clobbered by snacks, and a first-party Aquarium page where everything Camo forbids — presence, instant reactions, personal streaks — is legal. Done means: a stranger loads the README and sees a living, non-repeating pet; a star visibly thanks them by name; the Aquarium shows Momó live; and an outage raises a repo issue on the next half-hourly pulse (best effort — GitHub may delay scheduled runs).
+Streamlings is currently dead on GitHub: the reverse-proxy block for momo.ktzm.dk lived inside another project's deploy artifact and was wiped on 2026-07-13, so every README image 502s through Camo — and nothing noticed for three days. This campaign (1) makes Momó's hosting deploy-proof (revised from a Fly.io move to a $0 VPS fix — see Context), (2) adds a heartbeat that validates the *real* delivery path (the Camo URLs GitHub renders) and raises a sticky issue on failure, and then (3) rebuilds the experience toward the original "live pet" intent within measured platform physics: an animated-SVG stage that plays indefinitely client-side (verified: Camo serves `image/svg+xml` with data-URI images and inline CSS allowed), a reaction-priority + memory model so stars are never clobbered by snacks, and a first-party Aquarium page where everything Camo forbids — presence, instant reactions, personal streaks — is legal. Done means: a stranger loads the README and sees a living, non-repeating pet; a star visibly thanks them by name; the Aquarium shows Momó live; and an outage raises a repo issue on the next half-hourly pulse (best effort — GitHub may delay scheduled runs).
 
 ## Context (locked decisions)
 
 - **Branch:** `main` — direct commits after each step (solo dev, no PRs).
 - **Repos:** this repo only. The Contabo VPS is touched read-only plus one pre-authorized cleanup; the konsulentkortet/campaigns services on it are untouchable.
-- **Hosting:** Fly.io, always-on single machine + 1GB volume (`/data`). Root cause being fixed: Momó's ingress lived in `/opt/konsulentkortet/infra/Caddyfile` and a konsulentkortet deploy erased it.
+- **Hosting (REVISED 2026-07-16, Christian's call during Phase 1):** stay on the Contabo VPS, made deploy-proof. Fly.io (~$6/month, card required) was rejected. Momó's ingress now lives in `/etc/caddy/sites/momo.caddy` on the VPS host — outside the konsulentkortet deploy artifact — mounted read-only into their Caddy container and glob-imported by their Caddyfile; both the import line and the mount are committed to the konsulentkortet repo (dfccd6b) so deploys carry them. Root cause fixed: the old hand-edited block was erased by a konsulentkortet deploy on 2026-07-13. Residual risk (shared fate with that stack's Caddy) is covered by the heartbeat.
 - **Delivery law (measured, docs/POSTMORTEM.md):** Camo cuts upstream fetches at ~4.3s, buffers ~3.5KB, `no-store`, URL stable per origin URL. Every image response must be a complete file served fast.
 - **The SVG unlock (verified 2026-07-16):** Camo serves `image/svg+xml` with CSP `default-src 'none'; img-src data:; style-src 'unsafe-inline'`. A complete SVG with embedded base64 sprite strips + inline CSS animation plays indefinitely client-side. No fonts (glyph-atlas PNGs carry text), no scripts, no external refs. SVG becomes the stage; GIF stays for banners/boop and as graceful fallback.
-- **Pre-authorized external mutations (not hard stops):** creating the Fly app/volume/certs/secrets for momo; updating the `momo.ktzm.dk` A/AAAA records at Simply.com; disabling the old `streamlings` systemd unit on the VPS after verified cutover and a local ledger backup. Everything else on the VPS and in the ktzm.dk zone (apex→Vercel, MX, www) is out of bounds.
-- **Prerequisites before launching the run:** (1) flyctl authenticated — `brew install flyctl && fly auth login`, or `FLY_API_TOKEN` exported; (2) `SIMPLY_ACCOUNT` + `SIMPLY_APIKEY` exported for the DNS step — if absent, Step 1.2 writes `docs/RUNBOOK-dns.md` with the exact records and fails cleanly (a 2-minute manual fix), so export them up front to keep the run unattended; (3) `gh auth status` green (verified at planning time — account Aistotle); (4) private clip library built locally — verified present: 77 clips, 189MB in `assets/frames/`. Step 1.1's pre-flight re-checks all of these BEFORE any provider mutation, so a missing credential halts cleanly at the start instead of mid-cutover.
-- **Artwork boundary:** Momó's art never enters the public repo; it rides only the private Fly Docker image.
+- **External mutations actually performed in Phase 1:** `/etc/caddy/sites/momo.caddy` written on the VPS; the import line + read-only mount added to the live konsulentkortet Caddyfile/prod overlay AND committed to that repo (dfccd6b, unpushed — the repo was already 6 commits ahead of origin); their Caddy container recreated once (seconds of blip, cert survived in the volume). DNS untouched. The `streamlings` systemd unit stays in service — no retirement, no ledger migration (a backup from the outage sits in `~/Dev/streamlings-vps-backup/`).
+- **Prerequisites for the remaining phases:** `gh auth status` green (verified — account Aistotle); private clip library built locally (verified: 77 clips, 189MB in `assets/frames/`). No Fly, no Simply credentials needed. Deploys for Phase 2 = rsync + `systemctl restart streamlings` per docs/DEPLOY.md.
+- **Artwork boundary:** Momó's art never enters the public repo; built frames ship only via rsync to the VPS.
 - **No new artwork:** milestones, night mode, and rare episodes recombine the existing 77 tagged clips (`assets/manifest.json` carries mood/spawn/state hints).
-- **Fly deploys of the momo app are routine** within this campaign, not production hard stops.
+- **Deploys of the momo server (rsync + `systemctl restart streamlings`) are routine** within this campaign, not production hard stops. The konsulentkortet stack is out of bounds beyond the ingress seam already landed.
 - Keep the origin hardening intact: `safeBack` allowlist, HMAC webhook verification, body caps.
 
 ## Unattended execution contract
@@ -47,8 +47,8 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 
 High-craft examples the implementer steps match. Read the one your step names.
 
-- `campaigns/momo-comes-alive.assets/fly.toml` — Step 1.1 · *near-complete* · always-on Fly config; why auto_stop stays off under Camo's 4.3s clock.
-- `campaigns/momo-comes-alive.assets/Dockerfile` — Step 1.1 · *near-complete* · the private-artwork boundary; the .dockerignore that must NOT exclude assets/.
+- `campaigns/momo-comes-alive.assets/fly.toml` — Step 1.1 · *superseded* — hosting stayed on the VPS (Christian's call, 2026-07-16); kept only as the record of the rejected option.
+- `campaigns/momo-comes-alive.assets/Dockerfile` — Step 1.1 · *superseded* — same.
 - `campaigns/momo-comes-alive.assets/momo-heartbeat.yml` — Step 1.3 · *near-complete* · validates the Camo path, one sticky issue, always exits green (mood-webhook interaction).
 - `campaigns/momo-comes-alive.assets/svg-stage.js` — Step 2.1 · *spine* · the endless-SVG renderer: defs/use dedup, delay-aligned steps() film loops, loop-period-aligned segments, static-fallback base state.
 - `campaigns/momo-comes-alive.assets/aquarium-player.js` — Step 2.3 · *spine* · fixed-timestep canvas sprite player over the same strips + SSE reaction/presence glue.
@@ -57,8 +57,8 @@ High-craft examples the implementer steps match. Read the one your step names.
 
 ### Phase 1 — Own ground: hosting, cutover, heartbeat
 
-- [ ] Step 1.1 — Fly.io home for Momó
-- [ ] Step 1.2 — DNS cutover, Camo verification, VPS retirement
+- [x] Step 1.1 — Deploy-proof hosting (revised: VPS ingress fix, not Fly)
+- [x] Step 1.2 — Camo verification + recovery proof (revised: no DNS move, no retirement)
 - [x] Step 1.3 — Heartbeat monitor + diary hardening
 
 ### Phase 2 — The pet, rebuilt toward the original intent
@@ -74,75 +74,30 @@ High-craft examples the implementer steps match. Read the one your step names.
 
 Each step heading is followed by a `Model:` line (recommended agent + thinking effort) and a `Parallel:` line (which sibling steps can run alongside it).
 
-## Step 1.1 — Fly.io home for Momó
+## Step 1.1 — Deploy-proof hosting (revised: VPS ingress fix, not Fly)
 
-Model: Opus 4.8 · Extra High / GPT-5.6-Sol · Extra High
+Model: Manual — no agent
 Parallel: NO
 
-The server is a small self-contained Node app; its fragility was never the code, it was renting ingress inside another project's deploy artifact. This step gives it a home it owns.
+**COMPLETED 2026-07-16, revised mid-flight.** The planned Fly.io move was presented with its real cost (~$6/month, card required) and Christian chose the $0 alternative: keep the healthy `streamlings` unit on the Contabo VPS and make its ingress deploy-proof instead. What shipped:
 
-```text
-SCOPE: Deploy the existing streamlings server to its own Fly.io app with durable /data, migrated state, and the private artwork riding only the Docker image.
+- `/etc/caddy/sites/momo.caddy` on the VPS host (reverse_proxy 172.18.0.1:8787, flush_interval -1) — outside the konsulentkortet deploy artifact.
+- konsulentkortet repo commit `dfccd6b`: `import /etc/caddy/sites/*.caddy` in `infra/Caddyfile` + a read-only `/etc/caddy/sites` mount in `release/docker-compose.prod.yml`. Glob import = no-op when empty, so it is inert for konsulentkortet itself. (That repo was already 6 commits ahead of origin; the commit is local, unpushed.)
+- Same edits applied to the live VPS files (backups in `/root/*.bak-pre-momo`), config validated in a throwaway caddy container BEFORE recreating, then one `docker compose … up -d --no-deps caddy` (seconds of blip; the momo cert survived in the caddy-data volume, so TLS was instant).
+- State backup taken during the outage: `~/Dev/streamlings-vps-backup/` (ledger + webhook secret, chmod 600). No migration needed — the unit never stopped.
+- Fly scaffolding (fly.toml/Dockerfile/.dockerignore) removed from the repo root; the `.assets` copies remain as the record of the rejected option.
 
-REFERENCE IMPLEMENTATION — read first, this is the quality bar:
-  campaigns/momo-comes-alive.assets/fly.toml — always-on single-machine config; the header explains why auto_stop stays off (Camo's ~4.3s clock starts at TLS handshake).
-  campaigns/momo-comes-alive.assets/Dockerfile — the private-artwork boundary and the .dockerignore it requires (which must NOT exclude assets/).
-Match its shape, its rigor, and its idioms. The inline annotations call out the decisions that aren't obvious — honor the reasoning, don't just copy the syntax.
+## Step 1.2 — Camo verification + recovery proof (revised: no DNS move, no retirement)
 
-WHAT'S YOURS TO DECIDE:
-- Region and machine size — verify memory headroom after the first episode render (`fly machine status` / logs) and bump only if needed.
-- Whether the episode cache warms at boot (current behavior in server/index.js) or lazily on first request — pick what keeps a post-deploy Camo fetch fast, since /data caching persists across deploys either way.
-
-PRE-FLIGHT (fail cleanly, never prompt — and run it BEFORE any provider mutation): (a) flyctl on PATH (brew install flyctl if missing) and authenticated — `fly auth whoami` succeeds or FLY_API_TOKEN is set; (b) `gh auth status` green (Steps 1.3 and 2.1 need it); (c) SIMPLY_ACCOUNT + SIMPLY_APIKEY present — if absent, note loudly in the receipt that Step 1.2 will take the runbook path, but continue. If (a) or (b) fails, stop with a one-line instruction for Christian; do not attempt interactive login and do not create any Fly resources first.
-
-WORK: create app + volume per the reference; copy fly.toml/Dockerfile/.dockerignore to repo root and adapt; migrate live state BEFORE first boot serves traffic: fetch /opt/streamlings/data/ledger.json and WEBHOOK_SECRET from /etc/streamlings/env via `ssh -i ~/.ssh/konsulentkortet_contabo root@167.86.95.24` (read-only), set the secret with `fly secrets set`, place ledger.json on the volume (fly ssh sftp or a one-shot exec), keep a local backup copy under ~/Dev/streamlings-vps-backup/.
-
-REQUIRED READING:
-1. server/index.js — the env contract at the top (PORT, DATA_DIR, STREAM_ASSETS, WEBHOOK_SECRET) and the episode pre-render block.
-2. docs/DEPLOY.md — the env list; rewrite it for the Fly flow as part of this step.
-
-OUTPUT: fly.toml, Dockerfile, .dockerignore at repo root; app live at its fly.dev URL; docs/DEPLOY.md describing the new deploy; ledger backup at ~/Dev/streamlings-vps-backup/.
-
-ACCEPTANCE:
-- The fly.dev /healthz returns ok:true with the MIGRATED totals (planning snapshot: feed=4, stars=9) — not a fresh ledger.
-- /stage.gif from the fly.dev URL is a complete GIF (final byte 0x3B) delivered in under 2 seconds.
-- `git status` shows no private frame PNGs staged; assets/frames stays gitignored.
-
-FORWARD SWEEP: before checking this step off, do a quick pass over the campaign's remaining step prompts. If your work moved a path, changed a contract or shape, or invalidated an assumption a later step leans on, make a surgical edit there. A quick sweep, not a rewrite — skip it if nothing downstream changed.
-```
-
-## Step 1.2 — DNS cutover, Camo verification, VPS retirement
-
-Model: Opus 4.8 · Extra High / GPT-5.6-Sol · Extra High
+Model: Manual — no agent
 Parallel: NO
 
-Point momo.ktzm.dk at the new home, prove delivery through GitHub's actual proxy, then retire the orphaned VPS unit.
+**COMPLETED 2026-07-16.** DNS never moved (still A → 167.86.95.24) and the VPS unit stays in service, so this step reduced to proving delivery and the monitor's recovery path:
 
-```text
-SCOPE: Cut momo.ktzm.dk over to the Fly app, verify end-to-end through Camo (the real bar, not origin curl), and cleanly retire the old VPS service.
+- All 4 Camo URLs from the live README: HTTP 200, complete bodies, final byte 0x3B (stage 904,795B in 1.4s; banners + boop complete).
+- `https://momo.ktzm.dk/healthz` healthy with the original ledger intact (feed=4, stars=9); `https://konsulentkortet.dk` unaffected (200).
+- Heartbeat lifecycle proven on real events: outage run opened issue #3 ("Momó stopped breathing 🫀"), post-fix dispatch detected recovery, commented "Pulse is back", and closed it.
 
-WORK:
-1. `fly ips allocate-v4 --shared` + `fly ips allocate-v6`, then `fly certs add momo.ktzm.dk`.
-2. Update DNS at Simply.com: set the A record for momo.ktzm.dk to the Fly IPv4 and add AAAA for the IPv6. Use the REST API (https://api.simply.com/2/, HTTP Basic with SIMPLY_ACCOUNT/SIMPLY_APIKEY from the environment). If the credentials are absent, write docs/RUNBOOK-dns.md with the exact record changes and the Fly IPs, then fail this step cleanly with that pointer — do not wait or prompt. Touch ONLY the momo record; apex/www/MX are out of bounds.
-3. Wait for `fly certs check momo.ktzm.dk` to show the certificate issued (poll with backoff, up to ~15 min for DNS propagation).
-4. Verify like it matters: fetch https://github.com/Christian-Katzmann/streamlings, extract every camo.githubusercontent.com URL, fetch each — expect 200, image content-type, and a COMPLETE body (GIF final byte 0x3B). Include the actual outputs in the receipt — verification-gap is the most-cited past review failure (7×).
-5. Only after step 4 passes: on the VPS, `systemctl disable --now streamlings` (state was already backed up in Step 1.1). Leave /opt/streamlings in place; note its retirement in docs/DEPLOY.md.
-
-REQUIRED READING:
-1. docs/HANDOFF.md — §2 Infrastructure (the old topology being retired) and §8 quick reference.
-
-OUTPUT: DNS updated (or docs/RUNBOOK-dns.md + clean fail); cert issued; docs/DEPLOY.md notes the VPS retirement.
-
-ACCEPTANCE:
-- Every Camo URL extracted from the live README returns 200 with a complete body; receipts include the byte counts and trailer check.
-- https://momo.ktzm.dk/healthz serves from Fly (compare a response header like fly-request-id).
-- The streamlings systemd unit on the VPS is disabled and inactive; konsulentkortet containers untouched (docker ps unchanged).
-
-OPEN QUESTIONS:
-- If Simply credentials are absent and the runbook path triggers, say so loudly in the receipt so Christian does the 2-minute record edit before Step 1.3 runs.
-
-FORWARD SWEEP: before checking this step off, do a quick pass over the campaign's remaining step prompts. If your work moved a path, changed a contract or shape, or invalidated an assumption a later step leans on, make a surgical edit there. A quick sweep, not a rewrite — skip it if nothing downstream changed.
-```
 
 ## Step 1.3 — Heartbeat monitor + diary hardening
 
@@ -199,7 +154,7 @@ REQUIRED READING:
 1. server/pet.js — pickIdle/scene/loadFrames (the schedule builder composes these).
 2. server/index.js — the /stage.gif route and episode cache, where /stage.svg slots in alongside.
 
-OUTPUT: server/svg-stage.js (real one), route in server/index.js, strip cache under DATA_DIR, unit tests, deployed to Fly.
+OUTPUT: server/svg-stage.js (real one), route in server/index.js, strip cache under DATA_DIR, unit tests, deployed to the VPS (rsync + systemctl restart streamlings — see docs/DEPLOY.md).
 
 ACCEPTANCE (include the actual outputs in the receipt — verification-gap is the most-cited past review failure):
 - node --test includes tests asserting: wake-first schedule; every segment duration is an integer multiple of its clip's loop period; total episode ≥ 5 minutes; rendered document ≤ 1.5MB and well-formed XML; every `<use href="#…">` resolves to an id defined in `<defs>`; a schedule built from a one-clip library terminates.
@@ -233,7 +188,7 @@ REQUIRED READING:
 2. server/pet.js — pools, episodeScenes, moodBubble.
 3. server/hooks.js — handleEvent (the priority + workflow-name changes land here too).
 
-OUTPUT: updated server code + node --test coverage for each behavior; deployed to Fly.
+OUTPUT: updated server code + node --test coverage for each behavior; deployed to the VPS (rsync + systemctl restart streamlings — see docs/DEPLOY.md).
 
 ACCEPTANCE:
 - Test: a star thank-you survives a subsequent feed and is visible again within its 30-minute TTL.
@@ -267,7 +222,7 @@ REQUIRED READING:
 1. server/index.js — the /act routes, cookie ledger, and housePage (which this replaces or reroutes).
 2. campaigns/momo-comes-alive.assets/svg-stage.js — only the stripDataURI stub contract, so the two consumers share one cache.
 
-OUTPUT: the Aquarium page served at /, /events SSE endpoint, /strips/* + atlas routes, updated /act behavior; deployed to Fly.
+OUTPUT: the Aquarium page served at /, /events SSE endpoint, /strips/* + atlas routes, updated /act behavior; deployed to the VPS (rsync + systemctl restart streamlings — see docs/DEPLOY.md).
 
 ACCEPTANCE:
 - Two concurrent `curl -N` connections to /events each receive a presence event with count 2 within a few seconds.
@@ -294,7 +249,7 @@ WORK:
 - Copy leads with Momó: what a visitor sees and can do, in the pet's warm voice. "How it works," Camo physics, and any testing rituals ("unstar first…") move below the fold or into docs. Add a prominent "visit Momó live" link to the Aquarium — the README is the postcard, the Aquarium is the tank.
 - Boop honesty: browsers preload images inside closed <details>, so frame it as a hidden bonus reveal, and stop counting it as an interaction anywhere copy implies otherwise.
 - Consider a small "mailbox" touch if cheap (recent whispers via the glyph renderer) — optional, skip if it bloats scope.
-- Update docs/POSTMORTEM.md and docs/HANDOFF.md status lines to reflect v4 (SVG stage, Fly hosting, heartbeat); do not rewrite their history.
+- Update docs/POSTMORTEM.md and docs/HANDOFF.md status lines to reflect v4 (SVG stage, deploy-proof VPS ingress, heartbeat); do not rewrite their history.
 - Verify: after the README lands, dispatch momo-heartbeat and confirm it validates the NEW Camo URL set including stage.svg. Fetch the stage.svg Camo URL directly — 200, image/svg+xml, ends in </svg>.
 
 REQUIRED READING:
