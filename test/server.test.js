@@ -33,6 +33,32 @@ async function makeFixtureAssets(root) {
   }
 }
 
+async function nextSSE(reader, predicate, timeoutMs = 3_000) {
+  const decoder = new TextDecoder();
+  const deadline = Date.now() + timeoutMs;
+  let buffer = '';
+  while (Date.now() < deadline) {
+    const remaining = deadline - Date.now();
+    let timer;
+    const result = await Promise.race([
+      reader.read(),
+      new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('SSE timeout')), remaining); }),
+    ]).finally(() => clearTimeout(timer));
+    if (result.done) throw new Error('SSE stream ended');
+    buffer += decoder.decode(result.value, { stream: true }).replaceAll('\r\n', '\n');
+    const blocks = buffer.split('\n\n');
+    buffer = blocks.pop();
+    for (const block of blocks) {
+      const event = block.match(/^event: (.+)$/m)?.[1];
+      const raw = block.match(/^data: (.+)$/m)?.[1];
+      if (!event || !raw) continue;
+      const parsed = { event, data: JSON.parse(raw) };
+      if (predicate(parsed)) return parsed;
+    }
+  }
+  throw new Error('SSE timeout');
+}
+
 test('server returns complete GIFs and remembers actions', { timeout: 20_000 }, async () => {
   const port = 20_000 + Math.floor(Math.random() * 10_000);
   const dataDir = await mkdtemp(path.join(tmpdir(), 'streamlings-test-'));
@@ -67,6 +93,27 @@ test('server returns complete GIFs and remembers actions', { timeout: 20_000 }, 
     assert.equal(svgStage.headers.get('content-length'), String(Buffer.byteLength(svg)));
     assert.match(svg, /^<svg /);
     assert.ok(svg.endsWith('</svg>'));
+
+    const home = await fetch(`${base}/`);
+    const homeHtml = await home.text();
+    assert.equal(home.status, 200);
+    assert.match(home.headers.get('content-security-policy') || '', /default-src 'self'/);
+    assert.match(home.headers.get('set-cookie') || '', /momo_fid=/);
+    assert.match(homeHtml, /Momó's Aquarium/);
+    assert.match(homeHtml, /src="\/aquarium-player\.js"/);
+    assert.doesNotMatch(homeHtml, /<(?:script|img|link)[^>]+(?:src|href)="https?:/);
+
+    const playerModule = await fetch(`${base}/aquarium-player.js`);
+    assert.match(playerModule.headers.get('content-type') || '', /^text\/javascript/);
+    assert.match(await playerModule.text(), /Math\.min\(now - this\.last, 250\)/);
+
+    const atlasResponse = await fetch(`${base}/strips/atlas.json`);
+    const atlas = await atlasResponse.json();
+    const firstStrip = Object.values(atlas)[0].src;
+    assert.ok(Object.values(atlas).every(entry => entry.src.startsWith('/strips/')));
+    const strip = await fetch(`${base}${firstStrip}`);
+    assert.match(strip.headers.get('content-type') || '', /^image\/png/);
+    assert.ok((await strip.arrayBuffer()).byteLength > 0);
 
     const action = await fetch(`${base}/act/feed?back=https://github.com/Christian-Katzmann/streamlings`, { redirect: 'manual' });
     assert.equal(action.status, 302);
@@ -107,6 +154,36 @@ test('server returns complete GIFs and remembers actions', { timeout: 20_000 }, 
     const evil = await fetch(`${base}/act/pat?back=https://evil.example/phish`, { redirect: 'manual' });
     assert.equal(evil.status, 302);
     assert.equal(evil.headers.get('location'), 'https://github.com/Christian-Katzmann/streamlings#readme');
+
+    const firstController = new AbortController();
+    const secondController = new AbortController();
+    const firstEvents = await fetch(`${base}/events`, { signal: firstController.signal });
+    const secondEvents = await fetch(`${base}/events`, { signal: secondController.signal });
+    const firstReader = firstEvents.body.getReader();
+    const secondReader = secondEvents.body.getReader();
+    await Promise.all([
+      nextSSE(firstReader, event => event.event === 'presence' && event.data.count === 2),
+      nextSSE(secondReader, event => event.event === 'presence' && event.data.count === 2),
+    ]);
+
+    const reactionPromise = nextSSE(firstReader, event => event.event === 'reaction' && event.data.kind === 'feed');
+    const started = Date.now();
+    const instant = await fetch(`${base}/act/feed`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        Cookie: (action.headers.get('set-cookie') || '').split(';')[0],
+      },
+    });
+    const instantBody = await instant.json();
+    const reaction = await reactionPromise;
+    assert.ok(Date.now() - started < 1_000, 'reaction SSE took at least one second');
+    assert.equal(instant.status, 200);
+    assert.equal(instantBody.ok, true);
+    assert.equal(instantBody.personal.streak, 1);
+    assert.equal(reaction.data.clip, instantBody.reaction.clip);
+    firstController.abort();
+    secondController.abort();
   } finally {
     if (child.exitCode === null) {
       child.kill('SIGTERM');

@@ -1,5 +1,5 @@
-// Streamlings v3: complete, self-looping GIF scenes designed around GitHub Camo's
-// measured ~4.3 second upstream cutoff.
+// Streamlings v4: a first-party live Aquarium alongside the complete, self-looping
+// GitHub Camo delivery paths.
 import http from 'node:http';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -10,6 +10,7 @@ import { encodeLoop, encodeEpisode } from './gif-stream.js';
 import { verifySignature, handleEvent } from './hooks.js';
 import { buildStageDocument, createBubbleEncoder, createStripStore, renderStageSVG } from './svg-stage.js';
 import { chooseIdleBubble, ensureState, selectFeature, storeFeature } from './state.js';
+import { AquariumEvents, createAquariumCatalog, renderAquariumPage, touchStreak } from './aquarium.js';
 
 const PORT = Number(process.env.PORT || 8787);
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
@@ -54,6 +55,9 @@ function saveLedger() {
 const pet = new Pet(ASSET_DIR, ledger.flags, { unlockedSpawns: ledger.milestones.unlockedSpawns });
 const composer = new Composer(ASSET_DIR, { ink: pet.ink, paper: pet.paper });
 const stripStore = createStripStore(pet, { dataDir: DATA });
+const aquariumCatalog = createAquariumCatalog(pet, stripStore);
+const aquariumEvents = new AquariumEvents();
+const aquariumPlayer = fs.readFileSync(new URL('./aquarium-player.js', import.meta.url));
 const bubbleDataURI = createBubbleEncoder(composer, pet.palette);
 const gifCache = new Map();
 const stageCache = new Map();
@@ -137,7 +141,9 @@ function featureScenes(kind, scene) {
 }
 
 function feature(kind, bubble, ttl = TTL.action, { focus = false } = {}) {
-  const scene = pet.scene(kind, bubble);
+  // Selection and SSE do not need decoded frames. The eventual GIF/SVG request
+  // loads them; the live reaction can reach connected visitors immediately.
+  const scene = pet.sceneMeta(kind, bubble);
   const now = Date.now();
   storeFeature(ledger, {
     kind,
@@ -147,6 +153,7 @@ function feature(kind, bubble, ttl = TTL.action, { focus = false } = {}) {
     until: now + ttl,
   }, { focus });
   saveLedger();
+  aquariumEvents.reaction(scene);
   return scene;
 }
 
@@ -254,6 +261,16 @@ function cookies(req) {
 }
 function ordinal(n) { return n + (['th','st','nd','rd'][((n % 100) - 20) % 10] || ['th','st','nd','rd'][n % 100] || 'th'); }
 
+function visitorIdentity(req) {
+  let fid = cookies(req).momo_fid;
+  let setCookie = null;
+  if (!fid || !/^[0-9a-f-]{36}$/.test(fid)) {
+    fid = crypto.randomUUID();
+    setCookie = `momo_fid=${fid}; Max-Age=31536000; Path=/; HttpOnly; Secure; SameSite=Lax`;
+  }
+  return { fid, setCookie };
+}
+
 // The bounce lands at the README card (#readme), not the repo's file listing — the
 // browser should return the visitor to a pet that is already mid-reaction.
 function safeBack(raw) {
@@ -278,6 +295,55 @@ function diaryLine() {
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://x');
   const p = url.pathname;
+
+  if (p === '/' && req.method === 'GET') {
+    const { fid, setCookie } = visitorIdentity(req);
+    const html = renderAquariumPage(ledger, { fid });
+    const headers = {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Content-Length': Buffer.byteLength(html),
+      'Cache-Control': 'no-store',
+      'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'unsafe-inline'; img-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'",
+    };
+    if (setCookie) headers['Set-Cookie'] = setCookie;
+    res.writeHead(200, headers);
+    res.end(html);
+    return;
+  }
+  if (p === '/aquarium-player.js' && req.method === 'GET') {
+    res.writeHead(200, {
+      'Content-Type': 'text/javascript; charset=utf-8',
+      'Content-Length': aquariumPlayer.length,
+      'Cache-Control': 'public, max-age=300',
+    });
+    res.end(aquariumPlayer);
+    return;
+  }
+  if (p === '/strips/atlas.json' && req.method === 'GET') {
+    const body = JSON.stringify(aquariumCatalog.atlas);
+    res.writeHead(200, {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Content-Length': Buffer.byteLength(body),
+      'Cache-Control': 'no-store',
+    });
+    res.end(body);
+    return;
+  }
+  if (aquariumCatalog.strips.has(p) && req.method === 'GET') {
+    const { clip, frames } = aquariumCatalog.strips.get(p);
+    const bytes = stripStore.bytesFor(clip, frames);
+    res.writeHead(200, {
+      'Content-Type': 'image/png',
+      'Content-Length': bytes.length,
+      'Cache-Control': 'public, max-age=31536000, immutable',
+    });
+    res.end(bytes);
+    return;
+  }
+  if (p === '/events' && req.method === 'GET') {
+    aquariumEvents.add(req, res);
+    return;
+  }
 
   if (p === '/stage.gif') {
     const featured = activeFeature({ consumeFocus: true });
@@ -313,24 +379,40 @@ const server = http.createServer((req, res) => {
   }
 
   const act = p.match(/^\/act\/(feed|pat|play)$/)?.[1];
-  if (act) {
-    const c = cookies(req);
-    let fid = c.momo_fid;
+  if (act && (req.method === 'GET' || req.method === 'POST')) {
+    const { fid, setCookie } = visitorIdentity(req);
+    const instant = req.method === 'POST';
     // the reaction is armed BEFORE the redirect is sent, so the reloaded README's
     // stage fetch can never race it; the whole detour is one 302 blink
-    const headers = { Location: safeBack(url.searchParams.get('back')), 'Cache-Control': 'no-store' };
-    if (!fid || !/^[0-9a-f-]{36}$/.test(fid)) {
-      fid = crypto.randomUUID();
-      headers['Set-Cookie'] = `momo_fid=${fid}; Max-Age=31536000; Path=/; HttpOnly; Secure; SameSite=Lax`;
-    }
-    const feeder = (ledger.feeders[fid] ||= { feed: 0, pat: 0, play: 0, first: Date.now() });
-    feeder[act]++;
-    feeder.last = Date.now();
+    const now = Date.now();
+    const feeder = (ledger.feeders[fid] ||= { feed: 0, pat: 0, play: 0, first: now });
+    feeder[act] = (Number(feeder[act]) || 0) + 1;
+    feeder.last = now;
+    const streak = touchStreak(feeder, now);
     ledger.totals[act]++;
     const bubble = act === 'feed' && feeder.feed > 1 ? `ah, you again! ${ordinal(feeder.feed)} time ♥` : undefined;
-    feature(act, bubble, TTL.action, { focus: true });
-    res.writeHead(302, headers);
-    res.end();
+    const scene = feature(act, bubble, TTL.action, { focus: true });
+    const headers = { 'Cache-Control': 'no-store' };
+    if (setCookie) headers['Set-Cookie'] = setCookie;
+    if (instant) {
+      const body = JSON.stringify({
+        ok: true,
+        action: act,
+        reaction: { clip: scene.clip.key, bubble: scene.bubble, loops: 2 },
+        personal: {
+          streak: streak.days,
+          actions: ['feed', 'pat', 'play'].reduce((sum, kind) => sum + (Number(feeder[kind]) || 0), 0),
+        },
+      });
+      headers['Content-Type'] = 'application/json; charset=utf-8';
+      headers['Content-Length'] = Buffer.byteLength(body);
+      res.writeHead(200, headers);
+      res.end(body);
+    } else {
+      headers.Location = safeBack(url.searchParams.get('back'));
+      res.writeHead(302, headers);
+      res.end();
+    }
     return;
   }
 

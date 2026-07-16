@@ -67,7 +67,7 @@ High-craft examples the implementer steps match. Read the one your step names.
 
 - [x] Step 2.1 — The endless SVG stage
 - [x] Step 2.2 — Memory, moods, and milestones
-- [ ] Step 2.3 — The Aquarium: Momó live, first-party
+- [x] Step 2.3 — The Aquarium: Momó live, first-party
 
 ### Phase 3 — Tell the truth beautifully
 

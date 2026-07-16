@@ -103,6 +103,11 @@ export class Pet {
     return bubbles?.[Math.floor(Math.random() * bubbles.length)] ?? null;
   }
 
+  clipsFor(kind) {
+    const reaction = REACTIONS[kind] || REACTIONS.wake;
+    return reaction.ids.map(id => this.byId[id]).filter(Boolean);
+  }
+
   moodBubble(mood = this.mood) {
     if (mood === 'fleas') return 'i have fleas! (dependency alerts)';
     if (mood === 'rain') return 'the build is red… fix it?';
@@ -113,16 +118,20 @@ export class Pet {
     return { kind, clip, frames: this.loadFrames(clip), bubble };
   }
 
-  scene(kind = 'idle', bubbleOverride, clipId) {
+  sceneMeta(kind = 'idle', bubbleOverride, clipId) {
     let clip;
     if (kind === 'idle') clip = this.pickIdle();
     else if (kind === 'sleep') clip = this.pickWeighted(this.pools.sleep);
     else {
-      const reaction = REACTIONS[kind] || REACTIONS.wake;
-      const available = reaction.ids.map(id => this.byId[id]).filter(Boolean);
+      const available = this.clipsFor(kind);
       clip = this.byId[clipId] || available[Math.floor(Math.random() * available.length)] || this.pickIdle();
     }
     const bubble = bubbleOverride ?? (kind === 'idle' ? this.moodBubble() : this.defaultBubble(kind));
+    return { kind, clip, bubble };
+  }
+
+  scene(kind = 'idle', bubbleOverride, clipId) {
+    const { clip, bubble } = this.sceneMeta(kind, bubbleOverride, clipId);
     return this.sceneFromClip(kind, clip, bubble);
   }
 
