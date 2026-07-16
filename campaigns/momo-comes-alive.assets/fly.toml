@@ -1,0 +1,39 @@
+# REFERENCE IMPLEMENTATION · momo-comes-alive · Step 1.1. Not the target file — do not edit; copy to repo root and adapt.
+# Shows: always-on single-machine Fly config for a Camo-fronted image server with durable state.
+# Non-obvious:
+#   · auto_stop stays OFF. Camo allows ~4.3s total from TLS handshake to complete body;
+#     a machine cold-resume plus episode selection can blow that budget at the exact
+#     moment a visitor loads the README. Always-on is the product, not a luxury.
+#   · The volume holds ledger.json AND the rendered episode/strip cache — both survive
+#     deploys, so a deploy never makes the next Camo fetch slow.
+#   · WEBHOOK_SECRET is set via `fly secrets set`, never in this file.
+# Yours to decide: region (fra/ams equally fine), machine size (shared-cpu-1x / 512MB
+#   fits the measured episode renders — verify with `fly machine status` after first load).
+
+app = "momo-streamlings"
+primary_region = "fra"
+
+[env]
+  PORT = "8787"
+  DATA_DIR = "/data"
+  STREAM_ASSETS = "/app/assets"
+  BACK_URL = "https://github.com/Christian-Katzmann/streamlings"
+  REPO_SLUG = "Christian-Katzmann/streamlings"
+
+[[mounts]]
+  source = "momo_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8787
+  force_https = true
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/healthz"
