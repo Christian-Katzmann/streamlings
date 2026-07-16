@@ -66,7 +66,7 @@ High-craft examples the implementer steps match. Read the one your step names.
 ### Phase 2 — The pet, rebuilt toward the original intent
 
 - [x] Step 2.1 — The endless SVG stage
-- [ ] Step 2.2 — Memory, moods, and milestones
+- [x] Step 2.2 — Memory, moods, and milestones
 - [ ] Step 2.3 — The Aquarium: Momó live, first-party
 
 ### Phase 3 — Tell the truth beautifully
@@ -249,7 +249,7 @@ SCOPE: Rewrite the README around the new reality (SVG stage, Aquarium, honest bo
 ALREADY LANDED (2026-07-16, don't regress): the action row (feed/pat/play/whisper) sits directly under the stage; /act/* 302s straight back to the #readme anchor (no interstitial — housePage was deleted); actor reactions play reaction-first. Build on this, don't reintroduce a detour page or move the buttons away from the stage.
 
 WORK:
-- Stage image → https://momo.ktzm.dk/stage.svg?v=20260716. Banners/boop stay GIF. The version query is intentional: Step 2.1 proved this Camo signature while GitHub's bare-URL signature was stale (`Bad Signature`).
+- Stage image → https://momo.ktzm.dk/stage.svg?v=20260716. Banners/boop stay GIF. The version query is intentional. Read the Camo URL fresh from the rendered README after this change; do not reuse an older Camo hash, because Step 2.2 confirmed an old once-valid hash can later return `Bad Signature`.
 - Copy leads with Momó: what a visitor sees and can do, in the pet's warm voice. "How it works," Camo physics, and any testing rituals ("unstar first…") move below the fold or into docs. Add a prominent "visit Momó live" link to the Aquarium — the README is the postcard, the Aquarium is the tank.
 - Boop honesty: browsers preload images inside closed <details>, so frame it as a hidden bonus reveal, and stop counting it as an interaction anywhere copy implies otherwise.
 - Consider a small "mailbox" touch if cheap (recent whispers via the glyph renderer) — optional, skip if it bloats scope.

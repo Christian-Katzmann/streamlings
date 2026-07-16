@@ -17,9 +17,18 @@ export class StageBudgetError extends Error {
   }
 }
 
-// Wake is always first. Every segment is a whole number of film loops, so both
-// the clip and the master timeline return to a clean frame boundary.
-export function buildSchedule(pet, { minSeconds = 300, maxClips = 8, frameCap = 16 } = {}) {
+// Every segment is a whole number of film loops, so both the clip and the master
+// timeline return to a clean frame boundary. Callers may prepend a reaction.
+export function buildSchedule(pet, {
+  minSeconds = 300,
+  maxClips = 8,
+  frameCap = 16,
+  openingScenes = null,
+  now = () => new Date(),
+  random = Math.random,
+  rareChance = 1 / 40,
+  prominentClip,
+} = {}) {
   if (minSeconds <= 0 || maxClips < 1 || frameCap < 1) throw new Error('invalid stage schedule options');
 
   const segments = [];
@@ -41,14 +50,20 @@ export function buildSchedule(pet, { minSeconds = 300, maxClips = 8, frameCap = 
     previous = clip;
   };
 
-  add(pet.scene('wake').clip);
+  const openings = openingScenes || [pet.scene('wake')];
+  for (const scene of openings) add(scene.clip);
+  const date = now();
+  const hour = date instanceof Date ? date.getUTCHours() : new Date(date).getUTCHours();
+  const night = hour >= 22 || hour < 6;
+  const rare = prominentClip === undefined && random() < rareChance ? pet.pickRare?.(random) : prominentClip;
+  if (rare) add(rare);
   while (total < minSeconds) {
-    let clip = pet.pickIdle();
+    let clip = pet.pickIdle({ night, random });
     // Avoid immediate repeats when possible, without hanging on a one-clip library.
-    for (let tries = 0; clip === previous && tries < 8; tries++) clip = pet.pickIdle();
+    for (let tries = 0; clip === previous && tries < 8; tries++) clip = pet.pickIdle({ night, random });
     if (!used.has(clip.key) && used.size >= maxClips) {
       const paidFor = [...used.values()];
-      clip = paidFor[Math.floor(Math.random() * paidFor.length)];
+      clip = paidFor[Math.floor(random() * paidFor.length)];
     }
     add(clip);
   }
@@ -106,7 +121,10 @@ export function renderStageSVG(segments, {
   if (bubble) {
     if (typeof bubbleDataURI !== 'function') throw new Error('bubbleDataURI is required for a bubble');
     const card = bubbleDataURI(bubble.text);
-    const at = Math.max(0, Math.min(duration, bubble.at ?? 1.5));
+    const segmentAt = Number.isInteger(bubble.segmentIndex)
+      ? segments.slice(0, bubble.segmentIndex).reduce((sum, segment) => sum + segment.seconds, 0) + (bubble.delay ?? 0.5)
+      : null;
+    const at = Math.max(0, Math.min(duration, segmentAt ?? bubble.at ?? 1.5));
     const until = Math.max(at, Math.min(duration, at + (bubble.seconds ?? 6)));
     const start = percent(at);
     const end = percent(until);
@@ -119,7 +137,10 @@ export function renderStageSVG(segments, {
   const defs = [...strips.values()]
     .map(strip => `<image id="${strip.id}" width="${FRAME_W * strip.frameCount}" height="${FRAME_H}" href="${strip.uri}"/>`)
     .join('');
+  const escapeXML = value => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+  const title = bubble ? `Momó says: ${bubble.text}` : 'Momó, an animated pet';
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${FRAME_W}" height="${FRAME_H}" viewBox="0 0 ${FRAME_W} ${FRAME_H}" role="img" aria-label="Momó, an animated pet">` +
+    `<title>${escapeXML(title)}</title>` +
     `<style>${css.join('\n')}</style>` +
     `<defs>${defs}</defs>` +
     `<rect width="${FRAME_W}" height="${FRAME_H}" fill="${paper}"/>` +
@@ -254,10 +275,24 @@ export function buildStageDocument(pet, {
   minSeconds = 300,
   maxClips = 8,
   frameCap = 16,
+  openingScenes = null,
+  now = () => new Date(),
+  random = Math.random,
+  rareChance = 1 / 40,
+  prominentClip,
 } = {}) {
   let lastBudgetError;
   for (let uniqueClips = maxClips; uniqueClips >= 1; uniqueClips--) {
-    const segments = buildSchedule(pet, { minSeconds, maxClips: uniqueClips, frameCap });
+    const segments = buildSchedule(pet, {
+      minSeconds,
+      maxClips: uniqueClips,
+      frameCap,
+      openingScenes,
+      now,
+      random,
+      rareChance,
+      prominentClip,
+    });
     try {
       const svg = renderStageSVG(segments, { paper, stripDataURI, bubble, bubbleDataURI });
       return { svg, segments, uniqueClips };

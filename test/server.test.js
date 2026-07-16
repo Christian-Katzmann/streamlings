@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises';
@@ -14,7 +15,7 @@ async function makeFixtureAssets(root) {
     key: `${id}_fixture`,
     name: 'fixture',
     frames: 1,
-    fps: 12,
+    fps: 1,
     spawn: 'common',
     state_hint: index === 0 ? 'idle' : 'celebrate',
   }));
@@ -39,7 +40,7 @@ test('server returns complete GIFs and remembers actions', { timeout: 20_000 }, 
   await makeFixtureAssets(assetDir);
   const child = spawn(process.execPath, ['server/index.js'], {
     cwd: path.resolve('.'),
-    env: { ...process.env, PORT: String(port), DATA_DIR: dataDir, STREAM_ASSETS: assetDir, DISABLE_CI_POLL: '1' },
+    env: { ...process.env, PORT: String(port), DATA_DIR: dataDir, STREAM_ASSETS: assetDir, DISABLE_CI_POLL: '1', WEBHOOK_SECRET: 'test-secret' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let stderr = '';
@@ -74,6 +75,33 @@ test('server returns complete GIFs and remembers actions', { timeout: 20_000 }, 
     const after = await (await fetch(`${base}/healthz`)).json();
     assert.equal(after.featured.kind, 'feed');
     assert.equal(after.totals.feed, 1);
+
+    const starPayload = Buffer.from(JSON.stringify({
+      action: 'created',
+      sender: { login: 'campaign-tester' },
+      repository: { stargazers_count: 25 },
+    }));
+    const signature = 'sha256=' + crypto.createHmac('sha256', 'test-secret').update(starPayload).digest('hex');
+    const webhook = await fetch(`${base}/hooks/github`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-github-event': 'star', 'x-hub-signature-256': signature },
+      body: starPayload,
+    });
+    assert.equal(await webhook.text(), 'ok');
+    const starStage = await (await fetch(`${base}/stage.svg`)).text();
+    assert.match(starStage, /Momó says: thank you @campaign-tester ★/);
+
+    const boopBefore = await (await fetch(`${base}/healthz`)).json();
+    await fetch(`${base}/px/boop.gif`);
+    const boopAfter = await (await fetch(`${base}/healthz`)).json();
+    assert.equal(boopBefore.featured.kind, 'star');
+    assert.equal(boopAfter.featured.kind, 'star');
+
+    await fetch(`${base}/act/feed?back=https://github.com/Christian-Katzmann/streamlings`, { redirect: 'manual' });
+    const actionStage = await (await fetch(`${base}/stage.svg`)).text();
+    assert.doesNotMatch(actionStage, /thank you @campaign-tester/);
+    const resumedStarStage = await (await fetch(`${base}/stage.svg`)).text();
+    assert.match(resumedStarStage, /Momó says: thank you @campaign-tester ★/);
 
     // an evil back target never escapes to a non-GitHub host, and still lands at the README
     const evil = await fetch(`${base}/act/pat?back=https://evil.example/phish`, { redirect: 'manual' });

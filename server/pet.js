@@ -23,7 +23,7 @@ const REACTIONS = {
 const SAD_IDS = ['019', '028', '039', '040', '049', '018'];
 
 export class Pet {
-  constructor(assetDir, flags = {}) {
+  constructor(assetDir, flags = {}, { unlockedSpawns = [] } = {}) {
     this.assetDir = assetDir;
     this.manifest = JSON.parse(fs.readFileSync(path.join(assetDir, 'manifest.json'), 'utf8'));
     const pal = JSON.parse(fs.readFileSync(path.join(assetDir, 'palette.json'), 'utf8'));
@@ -31,10 +31,14 @@ export class Pet {
     this.ink = pal.ink;
     this.paper = pal.paper;
     this.byId = Object.fromEntries(this.manifest.map(c => [c.id, c]));
+    this.basePools = {
+      idle: this.manifest.filter(c => c.state_hint === 'idle' && c.spawn === 'common'),
+      look: this.manifest.filter(c => c.state_hint === 'look-around' && c.spawn === 'common'),
+    };
     this.pools = {
-      idle: this.manifest.filter(c => c.state_hint === 'idle'),
+      idle: [],
       sleep: this.manifest.filter(c => c.state_hint === 'sleep'),
-      look: this.manifest.filter(c => c.state_hint === 'look-around'),
+      look: this.basePools.look,
       sad: SAD_IDS.map(id => this.byId[id]).filter(Boolean),
     };
     this.cache = new Map();
@@ -43,6 +47,7 @@ export class Pet {
     this.flags = flags;
     this.flags.fleas ??= false;
     this.flags.ciRed ??= false;
+    this.setUnlockedSpawns(unlockedSpawns);
   }
 
   get mood() { return this.flags.fleas ? 'fleas' : this.flags.ciRed ? 'rain' : 'sunny'; }
@@ -62,10 +67,16 @@ export class Pet {
     return frames;
   }
 
-  pickWeighted(pool) {
+  setUnlockedSpawns(spawns = []) {
+    this.unlockedSpawns = new Set(spawns.filter(spawn => spawn === 'uncommon' || spawn === 'rare'));
+    const unlocked = this.manifest.filter(clip => this.unlockedSpawns.has(clip.spawn));
+    this.pools.idle = [...new Map([...this.basePools.idle, ...unlocked].map(clip => [clip.key, clip])).values()];
+  }
+
+  pickWeighted(pool, random = Math.random) {
     if (!pool.length) return this.pools.idle[0] || this.manifest[0];
     const weights = pool.map(c => SPAWN_WEIGHT[c.spawn] ?? 0.2);
-    let r = Math.random() * weights.reduce((a, b) => a + b, 0);
+    let r = random() * weights.reduce((a, b) => a + b, 0);
     for (let i = 0; i < pool.length; i++) {
       r -= weights[i];
       if (r <= 0) return pool[i];
@@ -73,12 +84,18 @@ export class Pet {
     return pool[pool.length - 1];
   }
 
-  pickIdle() {
-    if (this.mood !== 'sunny' && this.pools.sad.length && Math.random() < 0.7) {
-      return this.pickWeighted(this.pools.sad);
+  pickIdle({ night = false, random = Math.random } = {}) {
+    if (night && this.pools.sleep.length) return this.pickWeighted(this.pools.sleep, random);
+    if (this.mood !== 'sunny' && this.pools.sad.length && random() < 0.7) {
+      return this.pickWeighted(this.pools.sad, random);
     }
-    const pool = Math.random() < 0.2 && this.pools.look.length ? this.pools.look : this.pools.idle;
-    return this.pickWeighted(pool);
+    const pool = random() < 0.2 && this.pools.look.length ? this.pools.look : this.pools.idle;
+    return this.pickWeighted(pool, random);
+  }
+
+  pickRare(random = Math.random) {
+    const rare = this.manifest.filter(clip => clip.spawn === 'rare');
+    return rare.length ? this.pickWeighted(rare, random) : null;
   }
 
   defaultBubble(kind) {

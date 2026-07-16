@@ -52,6 +52,35 @@ test('a one-clip library terminates', () => {
   assert.ok(schedule.reduce((sum, segment) => sum + segment.seconds, 0) >= 300);
 });
 
+test('a 23:00 UTC schedule draws its idle segments from the sleep pool', () => {
+  const sleep = { id: 'sleep', key: 'sleep', frames: 12, fps: 12, spawn: 'common' };
+  const pet = {
+    scene: () => ({ clip: wake }),
+    pickIdle: ({ night }) => {
+      assert.equal(night, true);
+      return sleep;
+    },
+  };
+  const schedule = buildSchedule(pet, {
+    minSeconds: 20,
+    now: () => new Date('2026-07-16T23:00:00Z'),
+    rareChance: 0,
+  });
+  assert.ok(schedule.length > 1);
+  assert.ok(schedule.slice(1).every(segment => segment.clip === sleep));
+});
+
+test('the rare roll places a rare clip prominently after the opening', () => {
+  const rare = { id: 'rare', key: 'rare', frames: 12, fps: 12, spawn: 'rare' };
+  const pet = {
+    scene: () => ({ clip: wake }),
+    pickRare: () => rare,
+    pickIdle: () => idles[0],
+  };
+  const schedule = buildSchedule(pet, { minSeconds: 20, random: () => 0 });
+  assert.equal(schedule[1].clip, rare);
+});
+
 test('renderer stays within budget, is complete XML, and resolves every use through defs', () => {
   const schedule = buildSchedule(fakePet(), { minSeconds: 300, maxClips: 3 });
   const pixel = 'data:image/png;base64,iVBORw0KGgo=';
@@ -66,6 +95,16 @@ test('renderer stays within budget, is complete XML, and resolves every use thro
   const used = [...svg.matchAll(/<use href="#([^"]+)"/g)].map(match => match[1]);
   assert.ok(used.length >= schedule.length);
   for (const id of used) assert.ok(defined.has(id), `${id} is missing from defs`);
+});
+
+test('the visible bubble is traceable in SVG accessibility text', () => {
+  const schedule = buildSchedule(fakePet(), { minSeconds: 10, rareChance: 0 });
+  const svg = renderStageSVG(schedule, {
+    stripDataURI: () => 'data:image/png;base64,iVBORw0KGgo=',
+    bubbleDataURI: () => ({ uri: 'data:image/png;base64,iVBORw0KGgo=', w: 10, h: 10 }),
+    bubble: { text: 'thank you @octo ★', segmentIndex: 1 },
+  });
+  assert.match(svg, /<title>Momó says: thank you @octo ★<\/title>/);
 });
 
 test('strip store writes a horizontal PNG and reuses its disk cache', async () => {

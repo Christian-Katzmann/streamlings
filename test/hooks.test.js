@@ -47,3 +47,17 @@ test('fixing one dependency alert does not clear another', () => {
   send('fixed', 2);
   assert.equal(pet.flags.fleas, false);
 });
+
+test('only the ci workflow can change rain mood', () => {
+  const { ledger, pet, remembered } = fixture();
+  const completed = name => handleEvent('workflow_run', {
+    action: 'completed',
+    workflow_run: { name, head_branch: 'main', conclusion: 'failure' },
+    sender: {},
+  }, pet, ledger, () => {}, (...args) => remembered.push(args));
+
+  assert.equal(completed('momo-heartbeat'), 'ignored');
+  assert.equal(pet.flags.ciRed, false);
+  assert.equal(completed('ci'), 'ok');
+  assert.equal(pet.flags.ciRed, true);
+});

@@ -8,7 +8,8 @@ import { Pet } from './pet.js';
 import { Composer } from './compose.js';
 import { encodeLoop, encodeEpisode } from './gif-stream.js';
 import { verifySignature, handleEvent } from './hooks.js';
-import { buildStageDocument, createBubbleEncoder, createStripStore } from './svg-stage.js';
+import { buildStageDocument, createBubbleEncoder, createStripStore, renderStageSVG } from './svg-stage.js';
+import { chooseIdleBubble, ensureState, selectFeature, storeFeature } from './state.js';
 
 const PORT = Number(process.env.PORT || 8787);
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
@@ -38,6 +39,7 @@ ledger.metab ||= { commits: 0, stars: 0, forks: 0, whispers: 0, boops: 0 };
 ledger.recent ||= [];
 ledger.flags ||= { fleas: false, ciRed: false };
 ledger.alerts ||= {};
+ensureState(ledger);
 
 let saveTimer = null;
 function saveLedger() {
@@ -49,13 +51,12 @@ function saveLedger() {
   }, 100);
 }
 
-const pet = new Pet(ASSET_DIR, ledger.flags);
+const pet = new Pet(ASSET_DIR, ledger.flags, { unlockedSpawns: ledger.milestones.unlockedSpawns });
 const composer = new Composer(ASSET_DIR, { ink: pet.ink, paper: pet.paper });
 const stripStore = createStripStore(pet, { dataDir: DATA });
 const bubbleDataURI = createBubbleEncoder(composer, pet.palette);
 const gifCache = new Map();
-let featuredGif = null;
-let featuredGifKey = null;
+const stageCache = new Map();
 
 function episodeGif(scenes) {
   return encodeEpisode(scenes, pet.width, pet.height, pet.palette, {
@@ -100,8 +101,18 @@ const stage = buildStageDocument(pet, {
   bubbleDataURI,
   bubble: { text: pet.defaultBubble('wake') || 'oh, hello!', at: 1.5, seconds: 6 },
   paper: `rgb(${paperRGB.join(' ')})`,
+  now: () => new Date('2026-01-01T12:00:00Z'),
+  prominentClip: null,
 });
 console.log(`SVG stage ready: ${stage.segments.length} segments, ${stage.uniqueClips} unique clips, ${Buffer.byteLength(stage.svg)}B, ${Date.now() - stageStarted}ms`);
+const warmClips = [...new Map(stage.segments.map(segment => [segment.clip.key, segment.clip])).values()];
+const warmWake = { kind: 'wake', clip: stage.segments[0].clip };
+let warmCursor = 1;
+const warmSchedulePet = {
+  scene: (...args) => pet.scene(...args),
+  pickIdle: () => warmClips[warmCursor++ % warmClips.length],
+  pickRare: random => pet.pickRare(random),
+};
 
 function cacheGif(key, build) {
   if (gifCache.has(key)) return gifCache.get(key);
@@ -111,14 +122,11 @@ function cacheGif(key, build) {
   return bytes;
 }
 
-function activeFeature() {
-  if (!ledger.featured) return null;
-  if (ledger.featured.until > Date.now()) return ledger.featured;
-  delete ledger.featured;
-  featuredGif = null;
-  featuredGifKey = null;
-  saveLedger();
-  return null;
+function activeFeature({ consumeFocus = false } = {}) {
+  const before = JSON.stringify([ledger.featureFocus, ledger.features]);
+  const featured = selectFeature(ledger, { consumeFocus });
+  if (before !== JSON.stringify([ledger.featureFocus, ledger.features])) saveLedger();
+  return featured;
 }
 
 // Actor-triggered reactions play first: the person who pressed feed lands back on the
@@ -128,28 +136,75 @@ function featureScenes(kind, scene) {
   return REACTION_FIRST.has(kind) ? [scene, pet.scene('wake')] : [pet.scene('wake'), scene];
 }
 
-function feature(kind, bubble, ttl = TTL.action) {
+function feature(kind, bubble, ttl = TTL.action, { focus = false } = {}) {
   const scene = pet.scene(kind, bubble);
-  ledger.featured = {
+  const now = Date.now();
+  storeFeature(ledger, {
     kind,
     clipId: scene.clip.id,
     bubble: scene.bubble,
-    at: Date.now(),
-    until: Date.now() + ttl,
-  };
-  featuredGifKey = `${kind}:${scene.clip.id}:${scene.bubble || ''}`;
-  featuredGif = episodeGif(featureScenes(kind, scene));
+    at: now,
+    until: now + ttl,
+  }, { focus });
   saveLedger();
   return scene;
 }
 
 function featureEpisodeGif(featured) {
   const key = `${featured.kind}:${featured.clipId}:${featured.bubble || ''}`;
-  if (featuredGif && featuredGifKey === key) return featuredGif;
-  const scene = pet.scene(featured.kind, featured.bubble, featured.clipId);
-  featuredGifKey = key;
-  featuredGif = episodeGif(featureScenes(featured.kind, scene));
-  return featuredGif;
+  return cacheGif(`feature:${key}`, () => {
+    const scene = pet.scene(featured.kind, featured.bubble, featured.clipId);
+    return episodeGif(featureScenes(featured.kind, scene));
+  });
+}
+
+function featureStage(featured) {
+  const source = pet.scene(featured.kind, featured.bubble, featured.clipId);
+  // The reaction is the only strip that may be cold. Eight frames keep that
+  // first render beneath Camo's upstream window; the warm idle strips stay full.
+  const scene = { ...source, clip: { ...source.clip, frames: Math.min(8, source.clip.frames) } };
+  const actionFirst = REACTION_FIRST.has(featured.kind);
+  const openingScenes = actionFirst ? [scene, warmWake] : [warmWake, scene];
+  const key = `${featured.kind}:${featured.clipId}:${featured.bubble || ''}:${actionFirst}`;
+  if (stageCache.has(key)) return stageCache.get(key);
+  const rendered = buildStageDocument(warmSchedulePet, {
+    stripDataURI: stripStore.dataURI,
+    bubbleDataURI,
+    bubble: { text: featured.bubble || pet.defaultBubble(featured.kind) || 'oh!', segmentIndex: actionFirst ? 0 : 1, seconds: 6 },
+    paper: `rgb(${paperRGB.join(' ')})`,
+    openingScenes,
+    maxClips: 4,
+    prominentClip: null,
+  }).svg;
+  stageCache.set(key, rendered);
+  if (stageCache.size > 24) stageCache.delete(stageCache.keys().next().value);
+  return rendered;
+}
+
+function idleStage() {
+  const now = new Date();
+  const night = now.getUTCHours() >= 22 || now.getUTCHours() < 6;
+  const bubble = chooseIdleBubble(ledger);
+  const rare = Math.random() < 1 / 40 ? pet.pickRare() : null;
+  const prominentClip = rare ? { ...rare, frames: Math.min(8, rare.frames) } : null;
+  if (!night && !bubble && !prominentClip) return stage.svg;
+  if (!night && !prominentClip) {
+    return renderStageSVG(stage.segments, {
+      stripDataURI: stripStore.dataURI,
+      bubbleDataURI,
+      bubble: { text: bubble, at: 1.5, seconds: 6 },
+      paper: `rgb(${paperRGB.join(' ')})`,
+    });
+  }
+  return buildStageDocument(night ? pet : warmSchedulePet, {
+    stripDataURI: stripStore.dataURI,
+    bubbleDataURI,
+    bubble: { text: bubble || pet.defaultBubble('wake') || 'oh, hello!', at: 1.5, seconds: 6 },
+    paper: `rgb(${paperRGB.join(' ')})`,
+    now: () => now,
+    prominentClip,
+    maxClips: 4,
+  }).svg;
 }
 
 function nextIdleEpisode() {
@@ -225,17 +280,19 @@ const server = http.createServer((req, res) => {
   const p = url.pathname;
 
   if (p === '/stage.gif') {
-    const featured = activeFeature();
+    const featured = activeFeature({ consumeFocus: true });
     sendGif(res, featured ? featureEpisodeGif(featured) : nextIdleEpisode());
     return;
   }
   if (p === '/stage.svg') {
+    const featured = activeFeature({ consumeFocus: true });
+    const svg = featured ? featureStage(featured) : idleStage();
     res.writeHead(200, {
       'Content-Type': 'image/svg+xml; charset=utf-8',
-      'Content-Length': Buffer.byteLength(stage.svg),
+      'Content-Length': Buffer.byteLength(svg),
       'Cache-Control': 'no-store, no-cache, must-revalidate, private',
     });
-    res.end(stage.svg);
+    res.end(svg);
     return;
   }
   if (p === '/room/bedroom.gif') { sendGif(res, nextIdleEpisode()); return; }
@@ -250,7 +307,7 @@ const server = http.createServer((req, res) => {
   }
   if (p === '/px/boop.gif') { // compatibility for already-rendered README copies
     ledger.metab.boops++;
-    feature('boop', undefined, TTL.action);
+    saveLedger();
     sendGif(res, sensorGif(p));
     return;
   }
@@ -271,14 +328,14 @@ const server = http.createServer((req, res) => {
     feeder.last = Date.now();
     ledger.totals[act]++;
     const bubble = act === 'feed' && feeder.feed > 1 ? `ah, you again! ${ordinal(feeder.feed)} time ♥` : undefined;
-    feature(act, bubble, TTL.action);
+    feature(act, bubble, TTL.action, { focus: true });
     res.writeHead(302, headers);
     res.end();
     return;
   }
 
   if (p === '/wake') {
-    if (!activeFeature()) feature('wake', undefined, TTL.action);
+    if (!activeFeature()) feature('wake', undefined, TTL.action, { focus: true });
     res.writeHead(302, { Location: safeBack(url.searchParams.get('back')), 'Cache-Control': 'no-store' });
     res.end();
     return;
@@ -332,7 +389,7 @@ const server = http.createServer((req, res) => {
 
 async function pollCI() {
   try {
-    const response = await fetch(`https://api.github.com/repos/${REPO_SLUG}/actions/runs?branch=main&per_page=1&status=completed`, {
+    const response = await fetch(`https://api.github.com/repos/${REPO_SLUG}/actions/workflows/ci.yml/runs?branch=main&per_page=1&status=completed`, {
       headers: { 'User-Agent': 'streamlings-pet' },
     });
     if (!response.ok) return;
