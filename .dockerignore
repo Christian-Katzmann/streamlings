@@ -1,0 +1,12 @@
+# assets/ (including the locally-built frames) must NOT be ignored — it is the payload.
+.git
+.github
+node_modules
+data
+campaigns
+docs
+test
+tools
+pipeline
+*.log
+.DS_Store

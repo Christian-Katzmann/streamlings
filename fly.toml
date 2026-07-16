@@ -1,0 +1,35 @@
+# Momó's own home. Always-on by design: Camo allows ~4.3s from TLS handshake to a
+# complete body, so a cold machine resume can blow the budget at the exact moment a
+# visitor loads the README.
+app = "momo-streamlings"
+primary_region = "fra"
+
+[env]
+  PORT = "8787"
+  DATA_DIR = "/data"
+  STREAM_ASSETS = "/app/assets"
+  BACK_URL = "https://github.com/Christian-Katzmann/streamlings"
+  REPO_SLUG = "Christian-Katzmann/streamlings"
+
+[[mounts]]
+  source = "momo_data"
+  destination = "/data"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb"
+
+[http_service]
+  internal_port = 8787
+  force_https = true
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    # first boot pre-renders episodes onto the empty volume before listen(); give it room
+    grace_period = "60s"
+    method = "GET"
+    path = "/healthz"

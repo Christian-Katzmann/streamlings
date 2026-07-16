@@ -1,0 +1,82 @@
+name: momo-heartbeat
+# Momó's pulse: validates the REAL delivery path — the Camo URLs GitHub actually
+# renders — not the origin a curl would flatter. Manages one sticky incident issue
+# (create on failure, comment only when the reason changes, close on recovery).
+# The job always exits green: hooks.js maps failed workflow_runs to the pet's sad
+# mood, and the pet must not get sad because its doctor called in sick. The issue
+# is the alarm, not the workflow badge.
+on:
+  schedule:
+    # off-minute cadence — top-of-hour crons queue behind everyone else's; GitHub
+    # may still delay scheduled runs, so detection latency is best-effort
+    - cron: '13,43 * * * *'
+  workflow_dispatch:
+permissions:
+  issues: write
+jobs:
+  pulse:
+    runs-on: ubuntu-latest
+    steps:
+      - name: check Momó's vital signs through Camo
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const LABEL = 'momo-down';
+            const failures = [];
+
+            const check = async (name, fn) => {
+              try { await fn(); } catch (e) { failures.push(`${name}: ${e.message}`); }
+            };
+
+            await check('origin /healthz', async () => {
+              const r = await fetch('https://momo.ktzm.dk/healthz', { signal: AbortSignal.timeout(10_000) });
+              if (!r.ok) throw new Error(`HTTP ${r.status}`);
+            });
+
+            // the images a visitor actually sees — pulled fresh from the rendered README
+            const readme = await (await fetch(`https://github.com/${context.repo.owner}/${context.repo.repo}`)).text();
+            const camoUrls = [...new Set(readme.match(/https:\/\/camo\.githubusercontent\.com\/[a-f0-9]+\/[a-f0-9]+/g) || [])];
+            core.info(`found ${camoUrls.length} Camo URLs in the rendered README`);
+            if (camoUrls.length === 0) failures.push('README: no Camo URLs found in rendered HTML');
+
+            for (const url of camoUrls) {
+              await check(`camo …${url.slice(-12)}`, async () => {
+                const r = await fetch(url, { signal: AbortSignal.timeout(20_000) });
+                if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                const bytes = new Uint8Array(await r.arrayBuffer());
+                const head = String.fromCharCode(...bytes.slice(0, 6));
+                if (head === 'GIF89a') {
+                  // a COMPLETE gif ends with the 0x3B trailer — the exact byte whose
+                  // absence caused the original freeze bug
+                  if (bytes.at(-1) !== 0x3b) throw new Error('GIF missing trailer (truncated)');
+                } else {
+                  const tail = new TextDecoder().decode(bytes.slice(-200));
+                  if (!tail.includes('</svg>')) throw new Error('SVG missing closing tag (truncated)');
+                }
+                core.info(`ok ${url.slice(-12)} (${bytes.length} bytes, complete)`);
+              });
+            }
+
+            const { data: open } = await github.rest.issues.listForRepo({
+              ...context.repo, labels: LABEL, state: 'open',
+            });
+            const issue = open[0];
+            const report = failures.map(f => `- ${f}`).join('\n');
+
+            if (failures.length && !issue) {
+              await github.rest.issues.create({
+                ...context.repo,
+                title: 'Momó stopped breathing 🫀',
+                labels: [LABEL],
+                body: `The heartbeat check failed. A visitor loading the README right now sees broken images.\n\n${report}\n\n_This issue closes itself when the pulse returns._`,
+              });
+            } else if (failures.length && issue && !issue.body.includes(report)) {
+              // reason changed — update the body (single source of truth), one comment for the timeline
+              await github.rest.issues.update({ ...context.repo, issue_number: issue.number, body: issue.body.split('\n\n')[0] + `\n\n${report}\n\n_This issue closes itself when the pulse returns._` });
+              await github.rest.issues.createComment({ ...context.repo, issue_number: issue.number, body: `Failure changed:\n\n${report}` });
+            } else if (!failures.length && issue) {
+              await github.rest.issues.createComment({ ...context.repo, issue_number: issue.number, body: 'Pulse is back — every README image delivers complete through Camo. 🐙' });
+              await github.rest.issues.update({ ...context.repo, issue_number: issue.number, state: 'closed' });
+            }
+
+            if (failures.length) core.warning(`momo-down: ${failures.join(' | ')}`);

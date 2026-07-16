@@ -13,7 +13,12 @@ jobs:
       - uses: actions/checkout@v4
       - name: fetch today's line and append
         run: |
-          LINE=$(curl -fsS --max-time 20 https://momo.ktzm.dk/diary/line) || exit 0
+          # stay green on failure (a red workflow_run saddens the pet) but never mask it:
+          # the warning is visible on the run, and momo-heartbeat owns the actual alarm
+          if ! LINE=$(curl -fsS --max-time 20 https://momo.ktzm.dk/diary/line); then
+            echo "::warning::Momó was unreachable — no diary entry today (see momo-heartbeat for the alarm)"
+            exit 0
+          fi
           TODAY=$(date -u +%F)
           touch DIARY.md
           grep -q "^${TODAY} " DIARY.md && exit 0
