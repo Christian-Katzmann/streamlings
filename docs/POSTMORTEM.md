@@ -1,5 +1,11 @@
 # Camo postmortem
 
+**Status update — v4, verified 2026-07-16:** the README stage is now a complete
+five-minute animated SVG; live presence and instant shared reactions moved to Momó's
+first-party [Aquarium](https://momo.ktzm.dk/). The VPS ingress is protected from the
+adjacent stack's deploys, and a twice-hourly heartbeat checks the real rendered Camo
+URLs. The 2026-07-13 postmortem below is preserved as the history that led to v4.
+
 ## What actually happens
 
 Measured on 2026-07-13 against the live README and its real Camo URLs:

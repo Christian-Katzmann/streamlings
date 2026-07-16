@@ -1,10 +1,12 @@
 # Streamlings — Handoff & Debug Brief
 
-**Status: fixed and verified through GitHub/Camo on 2026-07-13.** Streamlings now serves
-varied minute-long self-looping episodes, persists recent reactions, renders named star
-thanks after the documented wake/refresh step, and gives boop its own visible reaction. See
-`docs/POSTMORTEM.md` for the measured result. The failure analysis below is preserved as
-historical context.
+**Status: v4 shipped and verified on 2026-07-16.** GitHub now receives a complete
+five-minute animated-SVG stage; Momó's first-party Aquarium owns live presence and
+instant reactions; the VPS ingress survives adjacent-stack deploys; and a twice-hourly
+heartbeat checks GitHub's rendered Camo URLs. Named star thanks still arrive by webhook
+and appear on the next load or **wake Momó** return. See `docs/POSTMORTEM.md` for the
+measured path to this design. The failure analysis below is preserved as historical
+context.
 
 Read this top to bottom before touching code. The origin server works fine when you
 `curl` it directly — **that is not the bar.** The bar is: a real person on github.com,
