@@ -59,7 +59,7 @@ High-craft examples the implementer steps match. Read the one your step names.
 
 - [ ] Step 1.1 — Fly.io home for Momó
 - [ ] Step 1.2 — DNS cutover, Camo verification, VPS retirement
-- [ ] Step 1.3 — Heartbeat monitor + diary hardening
+- [x] Step 1.3 — Heartbeat monitor + diary hardening
 
 ### Phase 2 — The pet, rebuilt toward the original intent
 
