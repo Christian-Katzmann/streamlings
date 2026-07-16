@@ -148,7 +148,7 @@ WHAT'S YOURS TO DECIDE:
 - Strip PNG encoding and its /data cache layout (the stub names the contract: pngjs from the same indexed frames pet.loadFrames returns, keyed by clip + frameCount + palette hash). The Aquarium (Step 2.3) will serve these same strip files — encode once, consume twice.
 - Bubble cards from the existing Composer glyph atlas (transparent PNG, data URI).
 - How the size budget degrades: fewer unique clips per schedule, never a truncated document.
-- Whether /stage.svg replaces the featured-episode logic too (a reaction schedule = wake + reaction + idles) or reactions stay on the GIF path until Step 2.2 — pick one and say so in the receipt.
+- Whether /stage.svg replaces the featured-episode logic too or reactions stay on the GIF path until Step 2.2 — pick one and say so in the receipt. Either way, preserve the ordering semantics that shipped 2026-07-16 (`REACTION_FIRST` in server/index.js): actor-triggered reactions (feed/pat/play/boop) open ON the reaction — the actor lands back mid-nom via the 302 bounce; webhook events keep the greeting first.
 
 REQUIRED READING:
 1. server/pet.js — pickIdle/scene/loadFrames (the schedule builder composes these).
@@ -219,7 +219,7 @@ WHAT'S YOURS TO DECIDE:
 - Strip serving: expose the Step 2.1 cache as /strips/<key>.png plus a small atlas JSON (key → frames/fps/idle) — only for clips the page needs.
 
 REQUIRED READING:
-1. server/index.js — the /act routes, cookie ledger, and housePage (which this replaces or reroutes).
+1. server/index.js — the /act routes and cookie ledger (the old housePage interstitial was deleted 2026-07-16; /act now 302s straight back to GitHub, and that must keep working for README links).
 2. campaigns/momo-comes-alive.assets/svg-stage.js — only the stripDataURI stub contract, so the two consumers share one cache.
 
 OUTPUT: the Aquarium page served at /, /events SSE endpoint, /strips/* + atlas routes, updated /act behavior; deployed to the VPS (rsync + systemctl restart streamlings — see docs/DEPLOY.md).
@@ -229,7 +229,7 @@ ACCEPTANCE:
 - Triggering /act/feed while a client is connected delivers a reaction event to that client in under 1 second (scripted receipt).
 - Streaks and the visitors wall actually ship: a test (injected clock) covers streak persistence across a restart, and the page renders ledger.recent entries through the same sanitization discipline as hooks.js (assert a hostile login renders inert).
 - The page loads with zero external-origin resources (all same-origin: page, module, strips, events).
-- The README bounce flow still works: /act/feed?back=… returns the redirect page unchanged in spirit.
+- The README bounce flow still works: /act/feed?back=… keeps 302ing to the GitHub #readme anchor with the cookie set; on-page buttons take the instant path instead.
 
 FORWARD SWEEP: before checking this step off, do a quick pass over the campaign's remaining step prompts. If your work moved a path, changed a contract or shape, or invalidated an assumption a later step leans on, make a surgical edit there. A quick sweep, not a rewrite — skip it if nothing downstream changed.
 ```
@@ -243,6 +243,8 @@ The shop window. Swap the stage to SVG, lead with the pet instead of the plumbin
 
 ```text
 SCOPE: Rewrite the README around the new reality (SVG stage, Aquarium, honest boop), refresh the status lines in docs, and prove the final delivery path.
+
+ALREADY LANDED (2026-07-16, don't regress): the action row (feed/pat/play/whisper) sits directly under the stage; /act/* 302s straight back to the #readme anchor (no interstitial — housePage was deleted); actor reactions play reaction-first. Build on this, don't reintroduce a detour page or move the buttons away from the stage.
 
 WORK:
 - Stage image → https://momo.ktzm.dk/stage.svg. Banners/boop stay GIF.
