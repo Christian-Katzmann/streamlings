@@ -72,7 +72,7 @@ High-craft examples the implementer steps match. Read the one your step names.
 ### Phase 3 — Tell the truth beautifully
 
 - [x] Step 3.1 — README and docs truth pass
-- [ ] Final review
+- [x] Final review
 
 Each step heading is followed by a `Model:` line (recommended agent + thinking effort) and a `Parallel:` line (which sibling steps can run alongside it).
 
