@@ -1,10 +1,14 @@
 <div align="center">
 
-<img src="https://momo.ktzm.dk/stage.gif" width="320" alt="Momó the octopus, animated for this visit" />
-
 # Streamlings
 
 **A pet that wakes up inside a GitHub README.**
+
+<img src="https://momo.ktzm.dk/stage.gif" width="320" alt="Momó the octopus, animated for this visit" />
+
+[**🍖 feed**](https://momo.ktzm.dk/act/feed?back=https://github.com/Christian-Katzmann/streamlings) · [**✋ pat**](https://momo.ktzm.dk/act/pat?back=https://github.com/Christian-Katzmann/streamlings) · [**⚽ play**](https://momo.ktzm.dk/act/play?back=https://github.com/Christian-Katzmann/streamlings) · [**🤫 whisper**](https://github.com/Christian-Katzmann/streamlings/issues/new?title=whisper%3A+hello+momo&body=Whisper+something+in+the+title.+Mom%C3%B3+reads+it%2C+replies%2C+and+eats+the+issue.+%F0%9F%90%99)
+
+<sub>Press one — the page blinks and you land right back here with Momó already reacting.<br>A cookie remembers repeat feeders.</sub>
 
 Each load starts with a hello, then plays a different minute-long Momó episode made from
 12 animations. It only loops after the full episode. Feed, pat, play, stars, forks,
@@ -24,15 +28,13 @@ GitHub name on the return trip.
 
 ## Interact
 
-These links visit Momó's house, record the action, and return here. The new page load
-contains the reaction. A cookie remembers repeat feeders.
+The buttons under the stage record the action and bounce you straight back — the reload
+carries the reaction. Two more ways in:
 
 <div align="center">
 
-[**🍖 feed**](https://momo.ktzm.dk/act/feed?back=https://github.com/Christian-Katzmann/streamlings) · [**✋ pat**](https://momo.ktzm.dk/act/pat?back=https://github.com/Christian-Katzmann/streamlings) · [**⚽ play**](https://momo.ktzm.dk/act/play?back=https://github.com/Christian-Katzmann/streamlings)
-
 🍴 **fork** = Momó welcomes the little one on the next load<br>
-[🤫 **whisper to Momó**](https://github.com/Christian-Katzmann/streamlings/issues/new?title=whisper%3A+hello+momo&body=Whisper+something+in+the+title.+Mom%C3%B3+reads+it%2C+replies%2C+and+eats+the+issue.+%F0%9F%90%99) = it replies, then eats the issue
+🤫 **whisper** = open an issue titled `whisper: …` — Momó replies, then eats the issue
 
 </div>
 

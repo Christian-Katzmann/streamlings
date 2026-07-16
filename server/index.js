@@ -14,7 +14,6 @@ const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..')
 const ASSET_DIR = process.env.STREAM_ASSETS || path.join(ROOT, 'assets');
 const BACK_URL = process.env.BACK_URL || 'https://github.com/Christian-Katzmann/streamlings';
 const DATA = process.env.DATA_DIR || path.join(ROOT, 'data');
-const BASE = process.env.BASE_PATH || '';
 const REPO_SLUG = process.env.REPO_SLUG || 'Christian-Katzmann/streamlings';
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || '';
 const MAX_BODY = 1 << 20;
@@ -109,6 +108,13 @@ function activeFeature() {
   return null;
 }
 
+// Actor-triggered reactions play first: the person who pressed feed lands back on the
+// README mid-nom. Webhook events keep the greeting first — that viewer arrives later.
+const REACTION_FIRST = new Set(['feed', 'pat', 'play', 'boop']);
+function featureScenes(kind, scene) {
+  return REACTION_FIRST.has(kind) ? [scene, pet.scene('wake')] : [pet.scene('wake'), scene];
+}
+
 function feature(kind, bubble, ttl = TTL.action) {
   const scene = pet.scene(kind, bubble);
   ledger.featured = {
@@ -119,7 +125,7 @@ function feature(kind, bubble, ttl = TTL.action) {
     until: Date.now() + ttl,
   };
   featuredGifKey = `${kind}:${scene.clip.id}:${scene.bubble || ''}`;
-  featuredGif = episodeGif([pet.scene('wake'), scene]);
+  featuredGif = episodeGif(featureScenes(kind, scene));
   saveLedger();
   return scene;
 }
@@ -129,7 +135,7 @@ function featureEpisodeGif(featured) {
   if (featuredGif && featuredGifKey === key) return featuredGif;
   const scene = pet.scene(featured.kind, featured.bubble, featured.clipId);
   featuredGifKey = key;
-  featuredGif = episodeGif([pet.scene('wake'), scene]);
+  featuredGif = episodeGif(featureScenes(featured.kind, scene));
   return featuredGif;
 }
 
@@ -179,29 +185,17 @@ function cookies(req) {
   return Object.fromEntries((req.headers.cookie || '').split(';').map(s => s.trim().split('=')).filter(p => p[0]));
 }
 function ordinal(n) { return n + (['th','st','nd','rd'][((n % 100) - 20) % 10] || ['th','st','nd','rd'][n % 100] || 'th'); }
-const escapeHtml = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+// The bounce lands at the README card (#readme), not the repo's file listing — the
+// browser should return the visitor to a pet that is already mid-reaction.
 function safeBack(raw) {
-  if (!raw) return BACK_URL;
+  let url;
   try {
-    const url = new URL(raw);
-    if (url.protocol === 'https:' && (url.hostname === 'github.com' || url.hostname === 'www.github.com')) return url.href;
-  } catch { /* use the configured default */ }
-  return BACK_URL;
-}
-
-function housePage(kind, back) {
-  const b = escapeHtml(back);
-  const text = { feed: 'nom nom nom…', pat: '♥', play: 'wheee!', wake: 'waking up…' }[kind] || '…';
-  return `<!doctype html><meta charset="utf-8">
-<meta http-equiv="refresh" content="1.6;url=${b}">
-<title>Momó's house</title>
-<body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#faf8f3;font-family:ui-rounded,'Comic Sans MS',sans-serif;color:#111">
-<div style="text-align:center">
-<img src="${escapeHtml(BASE)}/stage.gif" width="280" height="280" alt="Momó">
-<p style="font-size:20px;margin:8px 0 2px">${text}</p>
-<p style="font-size:13px;opacity:.55">taking you back <a href="${b}" style="color:inherit">now</a></p>
-</div></body>`;
+    url = new URL(raw);
+    if (url.protocol !== 'https:' || !['github.com', 'www.github.com'].includes(url.hostname)) url = new URL(BACK_URL);
+  } catch { url = new URL(BACK_URL); }
+  url.hash = 'readme';
+  return url.href;
 }
 
 function diaryLine() {
@@ -243,7 +237,9 @@ const server = http.createServer((req, res) => {
   if (act) {
     const c = cookies(req);
     let fid = c.momo_fid;
-    const headers = { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' };
+    // the reaction is armed BEFORE the redirect is sent, so the reloaded README's
+    // stage fetch can never race it; the whole detour is one 302 blink
+    const headers = { Location: safeBack(url.searchParams.get('back')), 'Cache-Control': 'no-store' };
     if (!fid || !/^[0-9a-f-]{36}$/.test(fid)) {
       fid = crypto.randomUUID();
       headers['Set-Cookie'] = `momo_fid=${fid}; Max-Age=31536000; Path=/; HttpOnly; Secure; SameSite=Lax`;
@@ -254,15 +250,15 @@ const server = http.createServer((req, res) => {
     ledger.totals[act]++;
     const bubble = act === 'feed' && feeder.feed > 1 ? `ah, you again! ${ordinal(feeder.feed)} time ♥` : undefined;
     feature(act, bubble, TTL.action);
-    res.writeHead(200, headers);
-    res.end(housePage(act, safeBack(url.searchParams.get('back'))));
+    res.writeHead(302, headers);
+    res.end();
     return;
   }
 
   if (p === '/wake') {
     if (!activeFeature()) feature('wake', undefined, TTL.action);
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
-    res.end(housePage('wake', safeBack(url.searchParams.get('back'))));
+    res.writeHead(302, { Location: safeBack(url.searchParams.get('back')), 'Cache-Control': 'no-store' });
+    res.end();
     return;
   }
 

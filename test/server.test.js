@@ -60,11 +60,18 @@ test('server returns complete GIFs and remembers actions', { timeout: 20_000 }, 
     assert.ok(bytes.includes(Buffer.from('NETSCAPE2.0')));
     assert.equal(bytes.at(-1), 0x3b);
 
-    const action = await fetch(`${base}/act/feed?back=https://github.com/Christian-Katzmann/streamlings`);
-    assert.equal(action.status, 200);
+    const action = await fetch(`${base}/act/feed?back=https://github.com/Christian-Katzmann/streamlings`, { redirect: 'manual' });
+    assert.equal(action.status, 302);
+    assert.equal(action.headers.get('location'), 'https://github.com/Christian-Katzmann/streamlings#readme');
+    assert.match(action.headers.get('set-cookie') || '', /momo_fid=/);
     const after = await (await fetch(`${base}/healthz`)).json();
     assert.equal(after.featured.kind, 'feed');
     assert.equal(after.totals.feed, 1);
+
+    // an evil back target never escapes to a non-GitHub host, and still lands at the README
+    const evil = await fetch(`${base}/act/pat?back=https://evil.example/phish`, { redirect: 'manual' });
+    assert.equal(evil.status, 302);
+    assert.equal(evil.headers.get('location'), 'https://github.com/Christian-Katzmann/streamlings#readme');
   } finally {
     if (child.exitCode === null) {
       child.kill('SIGTERM');
