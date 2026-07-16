@@ -1,5 +1,7 @@
 # Momó Comes Alive — own home, endless SVG stage, live aquarium
 
+<!-- campaign-id: 0e080ef8-f9c1-48c9-9665-15456e8a35f1 -->
+
 > Momó is a hand-drawn octopus that lives in a GitHub page. Its house broke and nobody noticed, so first we give it a home nobody else can knock over, plus a robot doctor that checks its pulse every half hour. Then we rebuild its stage so it can move for as long as you watch instead of repeating a one-minute loop, teach it to remember its visitors, and open a clubhouse page where you can watch it live and play with it.
 
 ## Scope
