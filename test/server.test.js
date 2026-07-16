@@ -60,6 +60,13 @@ test('server returns complete GIFs and remembers actions', { timeout: 20_000 }, 
     assert.ok(bytes.includes(Buffer.from('NETSCAPE2.0')));
     assert.equal(bytes.at(-1), 0x3b);
 
+    const svgStage = await fetch(`${base}/stage.svg`);
+    const svg = await svgStage.text();
+    assert.match(svgStage.headers.get('content-type') || '', /^image\/svg\+xml/);
+    assert.equal(svgStage.headers.get('content-length'), String(Buffer.byteLength(svg)));
+    assert.match(svg, /^<svg /);
+    assert.ok(svg.endsWith('</svg>'));
+
     const action = await fetch(`${base}/act/feed?back=https://github.com/Christian-Katzmann/streamlings`, { redirect: 'manual' });
     assert.equal(action.status, 302);
     assert.equal(action.headers.get('location'), 'https://github.com/Christian-Katzmann/streamlings#readme');

@@ -8,6 +8,7 @@ import { Pet } from './pet.js';
 import { Composer } from './compose.js';
 import { encodeLoop, encodeEpisode } from './gif-stream.js';
 import { verifySignature, handleEvent } from './hooks.js';
+import { buildStageDocument, createBubbleEncoder, createStripStore } from './svg-stage.js';
 
 const PORT = Number(process.env.PORT || 8787);
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
@@ -50,6 +51,8 @@ function saveLedger() {
 
 const pet = new Pet(ASSET_DIR, ledger.flags);
 const composer = new Composer(ASSET_DIR, { ink: pet.ink, paper: pet.paper });
+const stripStore = createStripStore(pet, { dataDir: DATA });
+const bubbleDataURI = createBubbleEncoder(composer, pet.palette);
 const gifCache = new Map();
 let featuredGif = null;
 let featuredGifKey = null;
@@ -89,6 +92,16 @@ for (let i = 0; i < EPISODE_VARIANTS; i++) episodePools.sunny.push(cachedEpisode
 episodePools.rain.push(cachedEpisode('rain', 0));
 episodePools.fleas.push(cachedEpisode('fleas', 0));
 console.log(`episodes ready: ${EPISODE_VARIANTS + 2} variants, ${EPISODE_SCENES} scenes each, ${Date.now() - episodeStarted}ms`);
+
+const paperRGB = pet.palette[pet.paper] || [246, 241, 231];
+const stageStarted = Date.now();
+const stage = buildStageDocument(pet, {
+  stripDataURI: stripStore.dataURI,
+  bubbleDataURI,
+  bubble: { text: pet.defaultBubble('wake') || 'oh, hello!', at: 1.5, seconds: 6 },
+  paper: `rgb(${paperRGB.join(' ')})`,
+});
+console.log(`SVG stage ready: ${stage.segments.length} segments, ${stage.uniqueClips} unique clips, ${Buffer.byteLength(stage.svg)}B, ${Date.now() - stageStarted}ms`);
 
 function cacheGif(key, build) {
   if (gifCache.has(key)) return gifCache.get(key);
@@ -216,6 +229,15 @@ const server = http.createServer((req, res) => {
     sendGif(res, featured ? featureEpisodeGif(featured) : nextIdleEpisode());
     return;
   }
+  if (p === '/stage.svg') {
+    res.writeHead(200, {
+      'Content-Type': 'image/svg+xml; charset=utf-8',
+      'Content-Length': Buffer.byteLength(stage.svg),
+      'Cache-Control': 'no-store, no-cache, must-revalidate, private',
+    });
+    res.end(stage.svg);
+    return;
+  }
   if (p === '/room/bedroom.gif') { sendGif(res, nextIdleEpisode()); return; }
   if (p === '/banner/top.gif') { sendGif(res, bannerGif(activeFeature())); return; }
   if (p === '/banner/bottom.gif') { sendGif(res, bannerGif(activeFeature(), 12)); return; }
@@ -326,4 +348,4 @@ if (!process.env.DISABLE_CI_POLL) {
   pollCI();
 }
 
-server.listen(PORT, () => console.log(`streamlings v3: bounded loops on :${PORT} (hooks: ${WEBHOOK_SECRET ? 'armed' : 'NO SECRET'})`));
+server.listen(PORT, () => console.log(`streamlings v4: endless SVG stage on :${PORT} (hooks: ${WEBHOOK_SECRET ? 'armed' : 'NO SECRET'})`));
